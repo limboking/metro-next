@@ -102,6 +102,64 @@ def expand_schedule(schedules):
     return sorted(set(m + 1440 if m < 270 else m for m in times))
 
 
+def filter_time(hhmm):
+    """filters 里的时刻（"HH:MM"）转绝对分钟，凌晨(<270) +1440 对齐 expand_schedule"""
+    m = to_min(hhmm)
+    if m is None:
+        return None
+    return m + 1440 if m < 270 else m
+
+
+def apply_filters(times, filters, routes):
+    """按 schedule filter 语义标记区间车：返回 {绝对分钟时刻: 终点站}（仅 ends_with != 全程终点）。
+
+    filters 语义（见数据源 docs/specification.md）：
+      - trains 存在 → 直接这些时刻
+      - 否则从 first_train 在时刻序列中定位，步长 skip_trains+1 取班，直到 count 趟或 until 时刻（含）
+    """
+    result = {}
+    tset = set(times)
+    for f in (filters or []):
+        if not isinstance(f, dict):
+            continue
+        plan = f.get("plan")
+        route = (routes or {}).get(plan) or {}
+        term = route.get("ends_with")
+        if not term:
+            continue   # 无 ends_with（出库/始发车，终点=全程终点，不影响终点显示）
+        hits = []
+        if isinstance(f.get("trains"), list):
+            for t in f["trains"]:
+                m = filter_time(t)
+                if m is not None:
+                    hits.append(m)
+        else:
+            ft = filter_time(f.get("first_train"))
+            skip = f.get("skip_trains", 0) or 0
+            step = skip + 1
+            cnt = f.get("count")
+            until = filter_time(f.get("until"))
+            start = 0
+            if ft is not None:
+                try:
+                    start = times.index(ft)
+                except ValueError:
+                    start = next((i for i, t in enumerate(times) if t >= ft), len(times))
+            i = start
+            while i < len(times):
+                t = times[i]
+                if until is not None and t > until:
+                    break
+                hits.append(t)
+                if cnt is not None and len(hits) >= cnt:
+                    break
+                i += step
+        for t in hits:
+            if t in tset:
+                result[t] = term
+    return result
+
+
 def line_color(d):
     c = d.get("color")
     if isinstance(c, str) and c.strip():
@@ -238,8 +296,10 @@ def build_index():
             for direction, groups in tt[st].items():
                 if not isinstance(groups, dict):
                     continue
+                routes = tr.get(direction) if isinstance(tr, dict) else None
                 group_times = {}   # 展开结果（用于去重 key 和 dow 判断）
                 group_raw = {}     # 原始 delta schedule（存储用，压缩体积）
+                group_term = {}    # {gname: {时刻: 终点站}} 区间车标记
                 for gname, gd in groups.items():
                     if not isinstance(gd, dict):
                         continue
@@ -247,11 +307,12 @@ def build_index():
                     if arr:
                         group_times[gname] = arr
                         group_raw[gname] = gd.get("schedule")
+                        group_term[gname] = apply_filters(arr, gd.get("filters"), routes)
                 if not group_times:
                     continue
                 # 去重时刻数组 -> g 列表（gl 为对应日期组名标签）
                 gnames = list(groups.keys())
-                uniq, idx_map, gl = [], {}, []
+                uniq, idx_map, gl, xt = [], {}, [], []
                 for gname in gnames:
                     key = tuple(group_times.get(gname, ()))
                     if not key:
@@ -260,6 +321,13 @@ def build_index():
                         idx_map[key] = len(uniq)
                         uniq.append(group_raw[gname])   # 存 delta（前端加载后展开）
                         gl.append(gname)
+                        # 该组区间车：{终点站: [时刻...]}（无区间车时 None）
+                        grp_xt = {}
+                        for t, term in (group_term.get(gname) or {}).items():
+                            grp_xt.setdefault(term, []).append(t)
+                        for term in grp_xt:
+                            grp_xt[term].sort()
+                        xt.append(grp_xt if grp_xt else None)
                 if not uniq:
                     continue
                 # dow: 周一(1)..周日(7) 各指向 g 索引
@@ -274,8 +342,11 @@ def build_index():
                             break
                     dow += str(gi)
                 terminal, nxt = direction_meta(tr, direction, sn, st_idx)
+                rec = {"l": name, "d": direction, "t": terminal, "n": nxt, "g": uniq, "gl": gl, "dow": dow}
+                if any(x is not None for x in xt):
+                    rec["xt"] = xt
                 recs = stations.setdefault(st, [])
-                recs.append({"l": name, "d": direction, "t": terminal, "n": nxt, "g": uniq, "gl": gl, "dow": dow})
+                recs.append(rec)
     # 线路按号排序
     ordered_lines = {}
     for ln in sorted(lines.keys(), key=line_sort_key):
