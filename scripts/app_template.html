@@ -1,0 +1,1458 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#151A26">
+<title>北京地铁时刻</title>
+<style>
+/* ================= 设计令牌 ================= */
+:root{
+  --bg:#F3F4F6;            /* 页面底 */
+  --surface:#FFFFFF;        /* 卡片 */
+  --surface-2:#F0F2F5;      /* 次级面 */
+  --surface-3:#E9ECF1;
+  --ink:#161A24;            /* 主文字 */
+  --ink-2:#59616F;          /* 次文字 */
+  --ink-3:#9AA1AF;          /* 弱文字 */
+  --primary:#2850E6;        /* 沉稳蓝 */
+  --primary-deep:#1B3BBF;
+  --primary-weak:#EAEFFF;
+  --danger:#E5484D;
+  --line:#E4E7EC;
+  --radius-xl:22px;
+  --radius-lg:16px;
+  --radius-md:12px;
+  --radius-sm:9px;
+  --shadow-1:0 1px 2px rgba(22,26,36,.04), 0 6px 20px rgba(22,26,36,.05);
+  --shadow-2:0 2px 8px rgba(22,26,36,.06), 0 18px 44px rgba(22,26,36,.14);
+  --ease:cubic-bezier(.2,0,0,1);
+  --spring:cubic-bezier(.34,1.56,.64,1);
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","HarmonyOS Sans SC","Microsoft YaHei",sans-serif;
+  background:var(--bg);color:var(--ink);font-size:16px;
+  -webkit-font-smoothing:antialiased;
+}
+#app{max-width:520px;margin:0 auto;min-height:100%;position:relative;}
+.num{font-variant-numeric:tabular-nums;letter-spacing:-.01em;}
+
+/* 视图转场 */
+.view{display:none;min-height:100vh;opacity:0;transform:translateY(10px);}
+.view.active{display:block;animation:viewIn .28s var(--ease) both;}
+@keyframes viewIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+/* 卡片入场 */
+.fade-up{animation:fadeUp .4s var(--ease) both;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+
+/* 顶栏 */
+.topbar{
+  position:sticky;top:0;z-index:20;display:flex;align-items:center;
+  padding:10px 12px 8px;background:rgba(243,244,246,.9);backdrop-filter:blur(14px);
+  -webkit-backdrop-filter:blur(14px);
+}
+.topbar .title{flex:1;font-size:16px;font-weight:600;text-align:center;margin-right:44px;letter-spacing:.02em;}
+.ibtn{
+  background:none;border:none;width:44px;height:44px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;color:var(--ink);font-size:20px;
+  transition:background .15s var(--ease);
+}
+.ibtn:active{background:var(--surface-2);}
+
+/* ================= 首页 ================= */
+.clock-card{
+  margin:14px 16px 0;border-radius:var(--radius-xl);overflow:hidden;
+  background:linear-gradient(160deg,#1A2236 0%,#12161F 100%);
+  color:#F4F6FA;box-shadow:var(--shadow-2);
+  padding:22px 22px 20px;position:relative;
+}
+.clock-card::after{
+  content:"";position:absolute;right:-40px;top:-40px;width:170px;height:170px;border-radius:50%;
+  background:radial-gradient(circle,rgba(40,80,230,.2),transparent 70%);
+  pointer-events:none;z-index:0;
+}
+.clock-top{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:#9AA6BC;position:relative;z-index:1;}
+.clock-date{font-weight:500;}
+.clock-type{font-size:12.5px;color:#9FB1D2;font-weight:500;white-space:nowrap;flex:0 0 auto;letter-spacing:.02em;}
+.clock-main{display:flex;align-items:baseline;justify-content:center;margin:14px 0 2px;position:relative;z-index:1;}
+.clock-time{font-size:52px;font-weight:800;letter-spacing:.5px;}
+.clock-sec{font-size:21px;font-weight:600;color:#9AA6BC;margin-left:3px;}
+.clock-foot{display:flex;justify-content:center;align-items:center;gap:12px;font-size:12px;color:#7E8AA0;margin-top:10px;position:relative;z-index:1;}
+.clock-foot b{color:#E8ECF4;font-weight:600;}
+.upd-btn{
+  display:inline-flex;align-items:center;gap:5px;background:none;border:none;color:inherit;
+  font-size:12px;line-height:inherit;padding:5px 9px;margin:-5px -9px;border-radius:9px;
+  cursor:pointer;font-family:inherit;transition:background .15s var(--ease),color .15s var(--ease);
+  position:relative;
+}
+.upd-btn:active{background:rgba(255,255,255,.12);color:#CDD6E6;}
+.upd-btn svg{flex:0 0 auto;}
+.upd-btn.checking svg{animation:spin 1s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.upd-btn .dot{
+  position:absolute;top:1px;right:1px;width:7px;height:7px;border-radius:50%;
+  background:#E5484D;display:none;
+}
+.upd-btn.has-update .dot{display:block;}
+
+.home-body{padding:22px 16px 96px;}
+.sec-head{display:flex;align-items:baseline;justify-content:space-between;padding:0 4px;margin-bottom:12px;gap:12px;}
+.sec-head .t{font-size:15px;font-weight:700;letter-spacing:.01em;flex:0 0 auto;}
+.sec-head .s{font-size:12px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;}
+.fav-list{display:flex;flex-direction:column;gap:11px;}
+.fav-card{
+  background:var(--surface);border-radius:var(--radius-lg);padding:15px 16px 14px;
+  box-shadow:var(--shadow-1);cursor:pointer;position:relative;overflow:hidden;
+  display:flex;gap:13px;align-items:stretch;
+  transition:transform .15s var(--ease),box-shadow .2s var(--ease);
+  animation:fadeUp .4s var(--ease) both;
+}
+.fav-card:active{transform:scale(.985);}
+.fav-card .accent{width:4px;border-radius:3px;flex:0 0 auto;align-self:stretch;}
+.fav-card .body{flex:1;min-width:0;}
+.fav-card .station-name{font-size:17px;font-weight:700;display:flex;align-items:center;gap:7px;}
+.fav-card.pressing{background:#FDEEEE;}
+.fav-card.pressing .station-name{color:var(--danger);}
+.fav-lines{display:flex;gap:4px;margin-top:6px;align-items:center;}
+.fav-line{width:9px;height:9px;border-radius:3px;}
+.fav-time{display:flex;align-items:baseline;gap:7px;margin-top:8px;min-width:0;}
+.fav-time .t{font-size:16px;font-weight:700;color:var(--primary);flex:0 0 auto;font-variant-numeric:tabular-nums;}
+.fav-time .fc{font-size:12px;color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}
+/* 右侧大号倒计时块 */
+.fav-cd{
+  flex:0 0 auto;display:flex;flex-direction:column;align-items:flex-end;justify-content:center;
+  min-width:104px;text-align:right;padding:2px 0 2px 12px;border-left:1px solid var(--line);
+}
+.fav-cd .k{font-size:11px;color:var(--ink-3);letter-spacing:.08em;}
+.fav-cd .v{font-size:23px;font-weight:800;color:var(--primary);margin-top:3px;line-height:1.1;font-variant-numeric:tabular-nums;white-space:nowrap;}
+.fav-cd .nd{font-size:10px;color:#7B61FF;font-weight:600;margin-top:3px;}
+.fav-cd.off .v{color:var(--ink-3);font-size:15px;font-weight:600;}
+.fav-hint{font-size:11.5px;color:var(--ink-3);text-align:center;margin-top:14px;letter-spacing:.02em;}
+.empty-tip{text-align:center;color:var(--ink-3);padding:52px 24px;line-height:2;}
+.empty-tip .glyph{font-size:46px;display:block;margin-bottom:10px;opacity:.85;}
+
+/* 底部主按钮 */
+.bottom-bar{
+  position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:520px;
+  padding:14px 18px calc(14px + env(safe-area-inset-bottom));
+  background:linear-gradient(180deg,rgba(243,244,246,0),var(--bg) 42%);
+}
+.main-btn{
+  width:100%;height:52px;background:var(--primary);color:#fff;border:none;border-radius:16px;
+  font-size:16px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;
+  box-shadow:0 6px 18px rgba(40,80,230,.28);
+  transition:transform .12s var(--ease),background .15s var(--ease),box-shadow .2s var(--ease);
+}
+.main-btn:active{transform:scale(.98);background:var(--primary-deep);box-shadow:0 3px 10px rgba(40,80,230,.3);}
+
+/* ================= 选择器 ================= */
+.picker-search{padding:6px 16px 10px;position:sticky;top:0;background:rgba(243,244,246,.92);backdrop-filter:blur(14px);z-index:10;}
+.search-box{
+  display:flex;align-items:center;gap:8px;background:var(--surface-2);border-radius:13px;
+  padding:0 13px;height:44px;transition:background .2s var(--ease),box-shadow .2s var(--ease);
+}
+.search-box:focus-within{background:#fff;box-shadow:0 0 0 2px var(--primary);}
+.search-box svg{flex:0 0 auto;color:var(--ink-3);}
+.search-box input{
+  flex:1;border:none;background:none;outline:none;font-size:15px;color:var(--ink);height:100%;
+}
+.search-box input::placeholder{color:var(--ink-3);}
+.search-clear{background:none;border:none;color:var(--ink-3);font-size:15px;width:28px;height:28px;border-radius:50%;}
+.search-clear:active{background:var(--surface-3);}
+.line-tabs{display:flex;gap:8px;overflow-x:auto;padding:2px 16px 12px;scrollbar-width:none;position:sticky;top:56px;background:rgba(243,244,246,.92);backdrop-filter:blur(14px);z-index:9;}
+.line-tabs::-webkit-scrollbar{display:none;}
+.line-tab{
+  flex:0 0 auto;border:1px solid var(--line);background:var(--surface);color:var(--ink-2);
+  border-radius:20px;padding:7px 14px;font-size:13px;cursor:pointer;white-space:nowrap;
+  transition:all .18s var(--ease);font-weight:500;
+}
+.line-tab.active{color:#fff;border-color:transparent;font-weight:600;box-shadow:0 3px 10px rgba(22,26,36,.14);}
+.picker-body{padding:2px 16px 110px;}
+.line-group{margin-bottom:20px;}
+.line-group-head{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;margin-bottom:10px;padding-left:2px;}
+.line-dot{width:12px;height:12px;border-radius:4px;flex:0 0 auto;}
+.station-chip{
+  display:inline-flex;align-items:center;background:var(--surface);border-radius:11px;
+  padding:10px 14px;margin:0 8px 8px 0;font-size:14.5px;box-shadow:0 1px 2px rgba(22,26,36,.05);
+  cursor:pointer;transition:transform .12s var(--ease),background .15s var(--ease);
+}
+.station-chip:active{transform:scale(.96);background:var(--surface-2);}
+.station-chip.faved::after{content:"★";color:#E8A33D;font-size:11.5px;margin-left:5px;}
+
+/* ================= 详情 ================= */
+.station-head{padding:16px 20px 4px;}
+.station-title{display:flex;align-items:center;gap:8px;font-size:24px;font-weight:800;letter-spacing:-.01em;}
+.station-title .star{
+  font-size:25px;color:#C9CFDB;background:none;border:none;padding:6px;cursor:pointer;line-height:1;
+  transition:transform .2s var(--spring);margin-left:2px;
+}
+.station-title .star.on{color:#E8A33D;}
+.station-title .star.pop{animation:starPop .35s var(--spring);}
+@keyframes starPop{0%{transform:scale(1)}40%{transform:scale(1.35)}100%{transform:scale(1)}}
+.station-sub{color:var(--ink-3);font-size:12.5px;margin:4px 4px 12px;}
+.filter-bar{
+  display:none;align-items:center;gap:8px;background:var(--primary-weak);color:var(--primary);
+  border-radius:var(--radius-md);padding:10px 13px;font-size:13px;margin:0 4px 14px;
+}
+.filter-bar.show{display:flex;animation:fadeUp .25s var(--ease) both;}
+.filter-bar .clr{margin-left:auto;font-weight:600;text-decoration:underline;}
+.dir-list{padding:6px 16px 110px;display:flex;flex-direction:column;gap:14px;}
+.dir-card{
+  background:var(--surface);border-radius:var(--radius-xl);box-shadow:var(--shadow-1);
+  overflow:hidden;animation:fadeUp .4s var(--ease) both;position:relative;
+}
+.dir-card .accent{position:absolute;left:0;top:0;bottom:0;width:4px;}
+.dir-card-body{padding:15px 17px 17px;}
+.dir-head{display:flex;align-items:center;gap:9px;padding:15px 17px 0;}
+.line-badge{
+  color:#fff;font-size:12.5px;font-weight:700;border-radius:7px;padding:3.5px 9px;letter-spacing:.02em;
+}
+.dir-name{font-size:14.5px;font-weight:600;color:var(--ink);}
+.dir-sub{font-size:12.5px;color:var(--ink-3);padding:6px 17px 0;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.dir-sub .sep{color:#c8cfdb;}
+.dir-sub b{color:var(--primary);font-weight:600;}
+.dir-star{
+  flex:0 0 auto;background:none;border:none;color:#C9CFDB;font-size:19px;width:36px;height:36px;
+  border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;margin-left:auto;
+  transition:color .15s var(--ease),background .15s var(--ease),transform .2s var(--spring);
+}
+.dir-star.on{color:#E8A33D;}
+.dir-star:active{transform:scale(.85);}
+.countdown{text-align:center;padding:16px 0 4px;position:relative;}
+.countdown .label{font-size:12px;color:var(--ink-3);letter-spacing:.12em;margin-bottom:7px;}
+.countdown .big{font-size:37px;font-weight:800;letter-spacing:.5px;}
+.countdown .big .unit{font-size:15px;font-weight:600;color:var(--ink-2);margin:0 3px;letter-spacing:0;}
+.countdown .status{font-size:14px;color:var(--danger);font-weight:600;margin-top:6px;}
+.countdown .status.warn{color:#D98B22;}
+.next-list{margin-top:13px;border-top:1px solid var(--line);padding-top:11px;}
+.nl-title{font-size:11.5px;color:var(--ink-3);letter-spacing:.1em;margin-bottom:5px;}
+.next-row{display:flex;align-items:center;gap:9px;padding:6px 9px;font-size:14.5px;border-radius:10px;margin:1px -9px;}
+.next-row.cur{background:var(--primary-weak);}
+.next-row .t{font-weight:700;min-width:50px;}
+.next-row .tag{font-size:10.5px;background:var(--primary);color:#fff;border-radius:5px;padding:1.5px 7px;font-weight:600;}
+.next-row .tag.next-day{background:#7B61FF;}
+.next-row .sub{font-size:12px;color:var(--ink-3);margin-left:auto;}
+.show-all{
+  width:100%;margin-top:13px;background:var(--surface-2);border:none;color:var(--primary);
+  border-radius:11px;padding:10px;font-size:13.5px;font-weight:600;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:5px;
+  transition:background .15s var(--ease);
+}
+.show-all:active{background:var(--surface-3);}
+.show-all .chev{transition:transform .25s var(--ease);font-size:11px;}
+.show-all.open .chev{transform:rotate(180deg);}
+.all-block{margin-top:14px;}
+.all-title{font-size:12px;color:var(--ink-3);font-weight:600;margin-bottom:8px;}
+.all-grid{display:flex;flex-wrap:wrap;gap:6px;padding:2px;}
+.at-chip{
+  background:var(--surface-2);border-radius:8px;padding:4.5px 9px;font-size:12.5px;
+  color:var(--ink);flex:0 0 auto;
+}
+.at-chip.nd{background:#F0ECFF;color:#7B61FF;}
+.at-chip.cur{background:var(--primary);color:#fff;font-weight:700;}
+.at-chip.cur.nd{background:#7B61FF;color:#fff;}
+.at-chip i{font-style:normal;font-size:10px;color:#A39AD6;margin-left:2px;}
+.at-chip.cur i{color:#dcd2ff;}
+.first-last{display:flex;gap:9px;margin-top:13px;}
+.fl-item{flex:1;background:var(--surface-2);border-radius:12px;padding:9px 10px;text-align:center;}
+.fl-item .k{font-size:11px;color:var(--ink-3);}
+.fl-item .v{font-size:15px;font-weight:700;margin-top:3px;}
+.fl-item .v small{font-size:11px;font-weight:400;color:var(--ink-3);margin-left:2px;}
+.data-note{color:var(--ink-3);font-size:11px;text-align:center;padding:14px 32px 10px;line-height:1.9;}
+
+/* 返回顶部 */
+#backTop{
+  position:fixed;right:18px;bottom:96px;z-index:30;background:var(--surface);
+  box-shadow:var(--shadow-1);border-radius:50%;width:44px;height:44px;border:none;
+  font-size:17px;color:var(--ink-2);display:flex;align-items:center;justify-content:center;
+  transition:transform .15s var(--ease);cursor:pointer;
+}
+#backTop:active{transform:scale(.92);}
+
+.clr-all{background:none;border:none;color:var(--danger);font-size:12.5px;font-weight:600;padding:6px 8px;border-radius:8px;transition:background .15s var(--ease);}
+.clr-all:active{background:#FDECEC;}
+
+/* ================= 删除确认弹层 ================= */
+.mask{
+  position:fixed;inset:0;background:rgba(16,19,28,.45);z-index:60;
+  opacity:0;transition:opacity .22s var(--ease);pointer-events:none;
+}
+.mask.show{opacity:1;pointer-events:auto;}
+.sheet{
+  position:fixed;left:50%;transform:translateX(-50%) translateY(110%);bottom:0;width:100%;max-width:520px;
+  background:var(--surface);border-radius:24px 24px 0 0;z-index:61;padding:10px 16px calc(16px + env(safe-area-inset-bottom));
+  transition:transform .3s var(--ease);
+  box-shadow:0 -8px 40px rgba(16,19,28,.18);
+}
+.sheet.show{transform:translateX(-50%) translateY(0);}
+.sheet .grip{width:38px;height:4.5px;border-radius:3px;background:var(--surface-3);margin:4px auto 14px;}
+.sheet-title{font-size:16px;font-weight:700;text-align:center;margin-bottom:4px;}
+.sheet-sub{font-size:13px;color:var(--ink-3);text-align:center;margin-bottom:16px;}
+.sheet .sb{height:50px;border:none;border-radius:14px;font-size:15.5px;font-weight:600;width:100%;cursor:pointer;transition:background .15s var(--ease);}
+.sheet .sb-del{background:#FDECEC;color:var(--danger);margin-bottom:9px;}
+.sheet .sb-del:active{background:#FADADA;}
+.sheet .sb.primary{background:var(--primary);color:#fff;}
+.sheet .sb.primary:active{background:var(--primary-deep);}
+.sheet .sb-cancel{background:var(--surface-2);color:var(--ink);}
+.sheet .sb-cancel:active{background:var(--surface-3);}
+
+/* Toast */
+#toast{
+  position:fixed;top:18px;left:50%;transform:translateX(-50%) translateY(-70px);z-index:80;
+  background:rgba(22,26,36,.92);color:#fff;font-size:13.5px;padding:10px 20px;border-radius:22px;
+  transition:transform .32s var(--spring);pointer-events:none;white-space:nowrap;
+}
+#toast.show{transform:translateX(-50%) translateY(0);}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ============ 首页 ============ -->
+  <section id="view-home" class="view active">
+    <div class="clock-card">
+      <div class="clock-top">
+        <span class="clock-date num" id="homeDate">—</span>
+        <span class="clock-type" id="homeType">—</span>
+      </div>
+      <div class="clock-main num">
+        <span class="clock-time" id="homeHM">--:--</span><span class="clock-sec" id="homeS">:--</span>
+      </div>
+      <div class="clock-foot">
+        <span>收藏 <b id="homeFavCnt">0</b> 站</span>
+        <span>·</span>
+        <button class="upd-btn" id="updBtn">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6"/></svg>
+          <span>数据更新 <b id="homeDataDate">—</b></span>
+          <span class="dot"></span>
+        </button>
+      </div>
+    </div>
+    <div class="home-body">
+      <div class="sec-head"><span class="t">我的站点</span><button class="clr-all" id="btnClearAll" style="display:none;">清空全部</button></div>
+      <div class="fav-list" id="favList"></div>
+      <div class="fav-hint" id="favHint" style="display:none;">长按收藏卡片可删除</div>
+      <div class="empty-tip" id="favEmpty" style="display:none;">
+        <span class="glyph">🚇</span>
+        还没有收藏站点<br>点下方按钮，选个常坐的站吧
+      </div>
+    </div>
+    <div class="bottom-bar"><button class="main-btn" id="btnPick"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>选择站点</button></div>
+  </section>
+
+  <!-- ============ 选择器 ============ -->
+  <section id="view-picker" class="view">
+    <div class="topbar">
+      <button class="ibtn" id="btnBackPicker">‹</button>
+      <div class="title">选择站点</div>
+      <span style="width:44px"></span>
+    </div>
+    <div class="picker-search">
+      <div class="search-box">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <input id="searchInput" type="search" placeholder="搜索站名或拼音首字母">
+        <button class="search-clear" id="searchClear" style="display:none;">✕</button>
+      </div>
+    </div>
+    <div class="line-tabs" id="lineTabs"></div>
+    <div class="picker-body" id="pickerBody"></div>
+  </section>
+
+  <!-- ============ 站点详情 ============ -->
+  <section id="view-station" class="view">
+    <div class="topbar">
+      <button class="ibtn" id="btnBackStation">‹</button>
+      <div class="title">时刻表</div>
+      <button class="ibtn" id="btnStar" style="font-size:22px;color:#C9CFDB;">☆</button>
+    </div>
+    <div class="station-head">
+      <div class="station-title"><span id="stName">—</span><button class="star" id="stStar">☆</button></div>
+      <div class="station-sub" id="stSub"></div>
+      <div class="filter-bar" id="filterBar">
+        <span id="filterText"></span>
+        <span class="clr" id="filterClear">查看全部方向</span>
+      </div>
+    </div>
+    <div class="dir-list" id="dirList"></div>
+    <button id="backTop" style="display:none;">↑</button>
+    <div class="data-note" id="dataNote"></div>
+  </section>
+
+</div>
+
+<!-- 删除确认弹层 -->
+<div class="mask" id="sheetMask"></div>
+<div class="sheet" id="sheet">
+  <div class="grip"></div>
+  <div class="sheet-title" id="sheetTitle">删除收藏？</div>
+  <div class="sheet-sub" id="sheetSub">—</div>
+  <button class="sb sb-del" id="sheetDel">删除收藏</button>
+  <button class="sb sb-cancel" id="sheetCancel">取消</button>
+</div>
+<div id="toast"></div>
+
+<script id="metro-data" type="application/json">__DATA__</script>
+<script>
+"use strict";
+/* ================= 数据 ================= */
+var DATA_FORMAT = 2;   // 数据格式版本：g 存 delta（前端加载后展开）
+/* 展开所有 rec.g 的 delta schedule 为完整时刻数组（幂等，已展开的数字数组跳过） */
+function expandDataG(d){
+  var sts = d && d.stations;
+  if (!sts) return d;
+  for (var st in sts){
+    var recs = sts[st];
+    for (var i=0;i<recs.length;i++){
+      var g = recs[i].g;
+      if (g) for (var gi=0;gi<g.length;gi++){
+        var grp = g[gi];
+        if (Array.isArray(grp) && grp.length && typeof grp[0] === "number") continue;  // 已展开，跳过
+        g[gi] = expandSchedule(grp);
+      }
+    }
+  }
+  return d;
+}
+function loadBestData(){
+  var builtin = null;
+  var el = document.getElementById("metro-data");
+  try { builtin = JSON.parse(el.textContent); }
+  catch(e){}
+  if (!builtin) builtin = { meta:{}, lines:{}, stations:{}, initial:{} };
+  // 新格式（delta）展开一次；随后释放内嵌数据文本（刷新时 HTML 重新解析会恢复）
+  if (builtin.meta && builtin.meta.fmt === DATA_FORMAT) expandDataG(builtin);
+  try { el.textContent = ""; } catch(e){}
+  // localStorage 中自助更新的新数据优先（格式匹配 + bjSha 与内置不同）
+  try {
+    var cached = JSON.parse(localStorage.getItem("bjmetro_data") || "null");
+    if (cached && cached.meta && cached.meta.fmt === DATA_FORMAT && builtin.meta.bjSha
+        && String(cached.meta.bjSha) !== String(builtin.meta.bjSha)){
+      expandDataG(cached);
+      return cached;
+    }
+  } catch(e){}
+  return builtin;
+}
+var DATA = loadBestData();
+var LINES = DATA.lines || {}, STATIONS = DATA.stations || {}, INITIAL = DATA.initial || {}, META = DATA.meta || {};
+
+/* ================= 状态 ================= */
+var favs = {};
+try { favs = JSON.parse(localStorage.getItem("bjmetro_favs") || "{}"); } catch(e){}
+var lastStation = localStorage.getItem("bjmetro_last") || "";
+var curStation = null, curFilter = null;      // curFilter: {l,d} 或 null
+var expandedAll = {}, lastNextIdx = {};
+var renderRecs = [];
+
+/* ================= 自助更新：前端解析 GitHub json5 源数据 ================= */
+var SRC_FILES = [
+  "capital-airport-express.json5","changping-line.json5","daxing-airport-express.json5",
+  "fangshan-line.json5","line-s1.json5","line1.json5","line10.json5","line11.json5",
+  "line12.json5","line13.json5","line14.json5","line15.json5","line16.json5","line17.json5",
+  "line18.json5","line19.json5","line2.json5","line3.json5","line4.json5","line5.json5",
+  "line6.json5","line7.json5","line8.json5","line9.json5","xijiao-line.json5",
+  "yanfang-line.json5","yizhuang-line.json5","yizhuang-t1-line.json5"
+];
+var SRC_MIRRORS = [
+  "https://gh-proxy.com/https://raw.githubusercontent.com/Mick235711/Beijing-Subway-Tools/main/data/beijing/",
+  "https://ghfast.top/https://raw.githubusercontent.com/Mick235711/Beijing-Subway-Tools/main/data/beijing/",
+  "https://raw.githubusercontent.com/Mick235711/Beijing-Subway-Tools/main/data/beijing/",
+  "https://api.github.com/repos/Mick235711/Beijing-Subway-Tools/contents/data/beijing/"
+];
+var updating = false, pendingBjSha = "", pendingBjDate = "";
+
+/* 下载源文件：依次尝试镜像链（gh-proxy → ghfast → GitHub raw → GitHub API），单文件独立回退 */
+function fetchSource(f, timeoutMs){
+  var idx = 0;
+  function tryNext(){
+    if (idx >= SRC_MIRRORS.length) return Promise.reject(new Error(f + " 所有源均不可用"));
+    var url = SRC_MIRRORS[idx];
+    var isApi = url.indexOf("api.github.com") >= 0;
+    idx++;
+    var opts = isApi ? {headers:{"Accept":"application/vnd.github.raw"}} : {};
+    var timer = null;
+    if (timeoutMs){
+      try {
+        var ctrl = new AbortController();
+        timer = setTimeout(function(){ try{ ctrl.abort(); }catch(e){} }, timeoutMs);
+        opts.signal = ctrl.signal;
+      } catch(e){}
+    }
+    return fetch(url + f, opts).then(function(r){
+      if (timer) clearTimeout(timer);
+      if (r.ok) return r.text();
+      return tryNext();
+    }).catch(function(){
+      if (timer) clearTimeout(timer);
+      return tryNext();
+    });
+  }
+  return tryNext();
+}
+
+/* 轻量 json5 解析：支持行/块注释、未加引号的 key、单引号字符串、尾逗号 */
+function parseJSON5(text){
+  var out = "", i = 0, inStr = false, strCh = "";
+  while (i < text.length){
+    var ch = text.charAt(i);
+    if (inStr){
+      if (ch === "\\"){ out += ch + (text.charAt(i+1)||""); i += 2; continue; }
+      out += ch;
+      if (ch === strCh) inStr = false;
+      i++; continue;
+    }
+    if (ch === '"' || ch === "'"){ inStr = true; strCh = ch; out += '"'; i++; continue; }
+    if (ch === "/" && text.charAt(i+1) === "/"){ while (i < text.length && text.charAt(i) !== "\n") i++; continue; }
+    if (ch === "/" && text.charAt(i+1) === "*"){ i += 2; while (i < text.length && !(text.charAt(i) === "*" && text.charAt(i+1) === "/")) i++; i += 2; continue; }
+    if (/[A-Za-z_$]/.test(ch)){
+      var j = i;
+      while (j < text.length && /[\w$]/.test(text.charAt(j))) j++;
+      var k = j; while (k < text.length && /\s/.test(text.charAt(k))) k++;
+      if (text.charAt(k) === ":"){ out += '"' + text.slice(i, j) + '"'; i = j; continue; }
+      out += text.slice(i, j); i = j; continue;
+    }
+    out += ch; i++;
+  }
+  out = out.replace(/,\s*([}\]])/g, "$1");
+  return JSON.parse(out);
+}
+function toMin(hhmm){
+  var m = /(\d{1,2}):(\d{2})/.exec(String(hhmm));
+  if (!m) return null;
+  return parseInt(m[1],10)*60 + parseInt(m[2],10);
+}
+function expandDelta(arr){
+  var out = [];
+  for (var i=0;i<arr.length;i++){
+    var item = arr[i];
+    if (typeof item === "number") out.push(item);
+    else if (Array.isArray(item) && item.length===2 && typeof item[0]==="number" && Array.isArray(item[1])){
+      for (var r=0;r<item[0];r++) out = out.concat(expandDelta(item[1]));
+    }
+  }
+  return out;
+}
+function expandSchedule(schedules){
+  var times = [];
+  for (var si=0; si<(schedules||[]).length; si++){
+    var seg = schedules[si];
+    if (!seg || typeof seg !== "object") continue;
+    if (Array.isArray(seg.trains)){
+      for (var ti=0;ti<seg.trains.length;ti++){
+        var m1 = toMin(seg.trains[ti]);
+        if (m1 != null) times.push(m1);
+      }
+    } else if (seg.first_train){
+      var cur = toMin(seg.first_train);
+      if (cur == null) continue;
+      times.push(cur);
+      var ds = expandDelta(seg.delta || []);
+      for (var di=0;di<ds.length;di++){ cur += ds[di]; times.push(cur); }
+    }
+  }
+  var seen = {}, out = [];
+  for (var i=0;i<times.length;i++){
+    var v = times[i] < 270 ? times[i]+1440 : times[i];   // 先做凌晨 +1440 映射
+    if (!seen[v]){ seen[v] = 1; out.push(v); }
+  }
+  out.sort(function(a,b){return a-b;});                   // 再排序（与 Python 一致）
+  return out;
+}
+function cleanName(name){
+  return String(name).replace(/[（(][^）)]*[）)]$/,"").trim();
+}
+function lineSortKey(name){
+  var m = /^(\d+)号线$/.exec(name);
+  if (m) return [0, parseInt(m[1],10)];
+  var order = {"S1线":1,"昌平线":2,"房山线":3,"燕房线":4,"亦庄线":5,"亦庄T1线":6,"西郊线":7,"首都机场线":8,"大兴机场线":9};
+  return [1, order[name] || 99];
+}
+function lineColorOf(d){
+  var c = d && d.color;
+  if (typeof c === "string" && c.trim()){
+    c = c.trim();
+    if (c.charAt(0) !== "#") c = "#" + c;
+    return c;
+  }
+  return "#9AA3B5";
+}
+function directionMeta(tr, direction, sn, stIdx){
+  var routings = tr && tr[direction];
+  var isLoop = false, reversed = false;
+  if (routings && typeof routings === "object"){
+    for (var rn in routings){
+      var rlow = String(rn).toLowerCase();
+      if (String(rn).indexOf("环")>=0 || rlow.indexOf("loop")>=0 || rlow.indexOf("circle")>=0){ isLoop = true; break; }
+    }
+    reversed = !!routings.reversed;
+  }
+  var n = sn.length;
+  if (isLoop){
+    return { t:"", n: sn[reversed ? (((stIdx-1)%n)+n)%n : (stIdx+1)%n] };
+  }
+  return { t: reversed ? sn[0] : sn[n-1],
+           n: reversed ? (stIdx>0 ? sn[stIdx-1] : "") : (stIdx<n-1 ? sn[stIdx+1] : "") };
+}
+/* 由 28 个 json5 文本构建完整站点索引（与 Python build_index 逻辑一致） */
+function buildDataFromSources(texts, newBjSha, newDate){
+  var lines = {}, stations = {};
+  for (var fi=0; fi<SRC_FILES.length; fi++){
+    var d;
+    try { d = parseJSON5(texts[fi]); }
+    catch(e){ throw new Error("json5 解析失败: "+SRC_FILES[fi]); }
+    if (!d || typeof d !== "object") continue;
+    var name = d.name || SRC_FILES[fi];
+    lines[name] = lineColorOf(d);
+    var snRaw = d.station_names || (d.stations||[]).map(function(s){ return s && s.name; });
+    var sn = (snRaw||[]).map(cleanName);
+    var dg = d.date_groups || {};
+    var tr = d.train_routes || {};
+    var tt = {};
+    for (var tk in (d.timetable||{})) tt[cleanName(tk)] = d.timetable[tk];
+    for (var si=0; si<sn.length; si++){
+      var st = sn[si];
+      if (!tt[st]) continue;
+      for (var direction in tt[st]){
+        var groups = tt[st][direction];
+        if (!groups || typeof groups !== "object") continue;
+        var groupTimes = {};   // 展开结果（去重 key）
+        var groupRaw = {};     // 原始 delta schedule（存储）
+        for (var gname in groups){
+          var gd = groups[gname];
+          if (!gd || typeof gd !== "object") continue;
+          var arr = expandSchedule(gd.schedule);
+          if (arr && arr.length){ groupTimes[gname] = arr; groupRaw[gname] = gd.schedule; }
+        }
+        if (!Object.keys(groupTimes).length) continue;
+        var gnames = Object.keys(groups);
+        var uniq = [], idxMap = {}, gl = [];
+        for (var g2=0; g2<gnames.length; g2++){
+          var gn = gnames[g2], key = (groupTimes[gn]||[]).join(",");
+          if (!key) continue;
+          if (!(key in idxMap)){ idxMap[key] = uniq.length; uniq.push(groupRaw[gn]); gl.push(gn); }
+        }
+        if (!uniq.length) continue;
+        var dow = "";
+        for (var day=1; day<=7; day++){
+          var gIdx = 0;
+          for (var g3=0; g3<gnames.length; g3++){
+            var gd2 = dg[gnames[g3]];
+            var wds = gd2 && Array.isArray(gd2.weekday) ? gd2.weekday : [];
+            if (wds.indexOf(day) >= 0){ gIdx = idxMap[(groupTimes[gnames[g3]]||[]).join(",")] || 0; break; }
+          }
+          dow += String(gIdx);
+        }
+        var dm = directionMeta(tr, direction, sn, si);
+        var recs = stations[st] || (stations[st] = []);
+        recs.push({l:name, d:direction, t:dm.t, n:dm.n, g:uniq, gl:gl, dow:dow});
+      }
+    }
+  }
+  var ordered = {};
+  Object.keys(lines).sort(function(a,b){
+    var ka = lineSortKey(a), kb = lineSortKey(b);
+    return (ka[0]-kb[0]) || (ka[1]-kb[1]);
+  }).forEach(function(ln){ ordered[ln] = lines[ln]; });
+  return {
+    meta: {
+      version: DATA.meta.version || "3.0",
+      fmt: DATA_FORMAT,
+      updated: newDate || "",
+      commitSha: DATA.meta.commitSha || "",
+      bjSha: newBjSha || "",
+      lines: Object.keys(ordered).length,
+      stations: Object.keys(stations).length,
+      source: "Beijing-Subway-Tools (MIT) · 网页自助更新",
+      lineAliases: DATA.meta.lineAliases || {}
+    },
+    lines: ordered,
+    stations: stations,
+    initial: DATA.initial || {}   // 拼音索引复用内置（新增站点降级）
+  };
+}
+
+/* ================= 工具 ================= */
+function $(id){ return document.getElementById(id); }
+function pad2(n){ return (n<10?"0":"")+n; }
+function fmtHM(m){ var r=m%1440; return pad2(Math.floor(r/60))+":"+pad2(r%60); }
+function fmtHMNextDay(m){ return m>=1440 ? {t:fmtHM(m), nd:true} : {t:fmtHM(m), nd:false}; }
+function dayType(d){ var w=d.getDay(); return (w===0||w===6)?"we":"wd"; }
+function effType(){
+  var n = new Date();
+  if (n.getHours()<4 || (n.getHours()===4 && n.getMinutes()<30)){
+    var y = new Date(n); y.setDate(y.getDate()-1); return dayType(y);
+  }
+  return dayType(n);
+}
+function nowMin(){ var n=new Date(); var m=n.getHours()*60+n.getMinutes(); return m; }
+function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+
+/* 收藏 key: 全站=站名; 方向="站||线||向" */
+function dirKey(st,l,d){ return st+"||"+l+"||"+d; }
+function isDirKey(k){ return k.indexOf("||")>=0; }
+function splitDirKey(k){ var p=k.split("||"); return {st:p[0],l:p[1],d:p[2]}; }
+
+function nextDateOf(absMin){
+  var now=new Date(), raw=absMin%1440;
+  var d=new Date(now.getFullYear(),now.getMonth(),now.getDate(),Math.floor(raw/60),raw%60,0,0);
+  if (d.getTime() < now.getTime()-60000) d=new Date(d.getTime()+86400000);
+  return d;
+}
+function calcNext(times, base){
+  for (var i=0;i<times.length;i++) if (times[i]>base) return {abs:times[i],waitSec:times[i]-base,idx:i};
+  return null;
+}
+function calcFirstGap(times, base){
+  var f=times[0]; if (f==null) return null;
+  var fa = base>=1440 ? f+1440 : f;
+  return fa>base ? fa-base : null;
+}
+function dirTimes(rec){
+  /* 新数据格式：rec.g = [时刻数组...]（去重后的日期组），rec.dow = 7字符（周一~周日各指 g 的索引）
+     按当天星期几选择对应的日期组时刻（凌晨 0:00-4:30 归入昨天） */
+  var now = new Date();
+  if (now.getHours()<4 || (now.getHours()===4 && now.getMinutes()<30)) now = new Date(now.getTime()-86400000);
+  var d = now.getDay();                 // 0=周日
+  var idx = d===0 ? 6 : d-1;            // 周一=0 ... 周日=6
+  var ch = rec.dow ? rec.dow.charAt(idx) : "0";
+  var gi = (ch >= "0" && ch <= "9") ? parseInt(ch, 10) : 0;
+  var arr = (rec.g && rec.g.length > gi) ? rec.g[gi] : (rec.g && rec.g[0]);
+  return arr || [];
+}
+
+/* ================= 视图 ================= */
+function showView(id){
+  document.querySelectorAll(".view").forEach(function(v){ v.classList.remove("active"); });
+  $(id).classList.add("active");
+  window.scrollTo(0,0);
+}
+/* 导航：写入浏览器历史，使手机返回键/手势返回能逐级返回上一级 */
+function navTo(view, state){
+  try { history.pushState(state || {v:view}, ""); } catch(e){}
+  showView(view);
+}
+/* 返回键（popstate）恢复上一级视图 */
+function onPopState(st){
+  if (st.v === "station" && st.s && STATIONS[st.s]){
+    curStation = st.s;
+    curFilter = (st.l && st.d) ? {l:st.l, d:st.d} : null;
+    renderStation();
+    showView("view-station");
+  } else if (st.v === "picker"){
+    showView("view-picker");
+  } else {
+    showView("view-home");
+  }
+}
+
+/* ================= Toast ================= */
+var toastTimer = null;
+function toast(msg){
+  var t = $("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ t.classList.remove("show"); }, 1600);
+}
+
+/* ================= 弹层（删除确认 / 检查更新 / 提示） ================= */
+var pendingAction = null;    // {type:'one', key} 或 {type:'all'}
+var pressTimer = null, pressKey = null, pressFired = false;   // 长按状态（全局，便于弹层复位）
+var sheetMode = "del";       // del=删除确认 | update=检查更新确认 | info=信息提示
+function openSheet(title, sub, delText, mode){
+  sheetMode = mode || "del";
+  $("sheetTitle").textContent = title;
+  $("sheetSub").textContent = sub;
+  $("sheetDel").textContent = delText;
+  $("sheetDel").classList.toggle("primary", sheetMode !== "del");
+  $("sheetMask").classList.add("show");
+  $("sheet").classList.add("show");
+}
+function closeSheet(){
+  $("sheetMask").classList.remove("show");
+  $("sheet").classList.remove("show");
+  $("sheetDel").classList.remove("primary");
+  pressFired = false;
+  document.querySelectorAll(".fav-card.pressing").forEach(function(c){ c.classList.remove("pressing"); });
+}
+function onSheetDel(){
+  if (sheetMode === "update"){ closeSheet(); checkUpdate(); return; }
+  if (sheetMode === "doUpdate"){ closeSheet(); doUpdate(pendingBjSha, pendingBjDate); return; }
+  if (sheetMode === "dlCheck"){ closeSheet(); downloadAndCompare(); return; }
+  if (sheetMode === "info"){ closeSheet(); return; }
+  confirmDel();
+}
+function confirmDel(){
+  if (!pendingAction) return;
+  if (pendingAction.type === "all"){
+    favs = {};
+    saveFavs();
+    renderHome();
+    toast("已清空全部收藏");
+  } else {
+    toggleFav(pendingAction.key);
+    toast("已删除收藏");
+  }
+  pendingAction = null;
+  closeSheet();
+}
+
+/* ================= 手动检查更新（仅用户点击时执行） ================= */
+var checking = false;
+function checkUpdate(){
+  if (checking) return;
+  checking = true;
+  $("updBtn").classList.add("checking");
+  toast("正在检查数据更新…");
+  // 路径 A：api.github.com 精确检查（8 秒超时，国内直连失败快速降级，不等待）
+  var ctrl = null, timer = null;
+  try { ctrl = new AbortController(); timer = setTimeout(function(){ try{ ctrl.abort(); }catch(e){} }, 8000); } catch(e){}
+  var opts = {headers: {"Accept":"application/vnd.github+json"}};
+  if (ctrl) opts.signal = ctrl.signal;
+  fetch("https://api.github.com/repos/Mick235711/Beijing-Subway-Tools/commits?path=data/beijing&per_page=1", opts)
+    .then(function(r){ if (timer) clearTimeout(timer); if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(function(arr){
+      checking = false;
+      $("updBtn").classList.remove("checking");
+      localStorage.setItem("bjmetro_lastCheck", String(Date.now()));
+      $("updBtn").classList.remove("has-update");
+      var up = META.updated || "—";
+      var latest = (arr && arr[0] && arr[0].sha) || "";
+      if (latest && latest === (META.bjSha || "")){
+        toast("数据已是最新（"+up+"）");
+      } else {
+        pendingBjSha = latest;
+        pendingBjDate = ((arr && arr[0] && arr[0].commit && arr[0].commit.author && arr[0].commit.author.date) || "").slice(0,10);
+        openSheet("发现新数据", "北京地铁数据已有更新（更新于 "+(pendingBjDate||"—")+"）。当前版本 "+up+"，是否立即更新？", "立即更新", "doUpdate");
+      }
+    })
+    .catch(function(){
+      // 路径 B：API 不可用（国内直连失败/超时）→ 降级为镜像下载全量 + 内容对比
+      checking = false;
+      $("updBtn").classList.remove("checking");
+      if (timer) clearTimeout(timer);
+      openSheet("检查数据", "无法连接 GitHub API（国内网络直连限制），将改为通过镜像下载最新数据检查（约 2.5MB），确认继续？", "镜像下载检查", "dlCheck");
+    });
+}
+
+/* ================= 网页自助更新（前端下载并解析 GitHub 源数据） ================= */
+/* 下载 28 个源文件（镜像链），回调进度 */
+function downloadAll(onProgress){
+  var done = 0;
+  return Promise.all(SRC_FILES.map(function(f){
+    return fetchSource(f, 20000).then(function(t){
+      done++;
+      if (onProgress) onProgress(done, SRC_FILES.length);
+      return t;
+    });
+  }));
+}
+/* 应用新数据：缓存存 delta 原件（压缩），内存展开后替换全局并重绘 */
+function applyData(nd){
+  try { localStorage.setItem("bjmetro_data", JSON.stringify(nd)); } catch(e){}   // 存 delta 原件
+  expandDataG(nd);   // 内存展开
+  DATA = nd;
+  LINES = DATA.lines || {}; STATIONS = DATA.stations || {}; INITIAL = DATA.initial || {}; META = DATA.meta || {};
+  buildPickerIndex();
+  renderHome();
+  tickHome();
+  if (curStation && STATIONS[curStation]) renderStation();
+}
+/* 单个方向组的时刻指纹（兼容 delta 与已展开两种格式） */
+function groupFP(g){
+  return (g||[]).map(function(grp){
+    if (Array.isArray(grp) && grp.length && typeof grp[0] === "number") return grp.join(",");
+    return expandSchedule(grp).join(",");
+  }).join(";");
+}
+/* 数据内容指纹（无 API 时判定是否有更新） */
+function dataFingerprint(d){
+  try {
+    var sts = d.stations, parts = [JSON.stringify(d.lines)];
+    for (var st in sts){
+      var recs = sts[st];
+      for (var i=0;i<recs.length;i++){
+        var r = recs[i];
+        parts.push(st + "|" + r.l + "|" + r.d + "|" + r.t + "|" + r.n + "|" + r.dow + "|" + groupFP(r.g));
+      }
+    }
+    return parts.join("\n");
+  } catch(e){ return ""; }
+}
+
+/* 路径 A 确认后：强制更新 */
+function doUpdate(newBjSha, newDate){
+  if (updating) return;
+  updating = true;
+  toast("正在下载数据（0/"+SRC_FILES.length+"）…");
+  downloadAll(function(done, total){
+    if (done % 4 === 0 || done === total) toast("正在下载数据（"+done+"/"+total+"）…");
+  }).then(function(texts){
+    toast("正在解析数据…");
+    var nd;
+    try { nd = buildDataFromSources(texts, newBjSha, newDate); }
+    catch(e){ updating = false; toast("更新失败："+e.message); return; }
+    applyData(nd);
+    toast("数据已更新（"+(META.updated||"")+"）");
+    updating = false;
+  }).catch(function(){
+    updating = false;
+    toast("更新失败，请检查网络后重试");
+  });
+}
+
+/* 路径 B 降级：镜像下载全量 + 解析 + 与当前数据内容对比，有差异才应用 */
+function downloadAndCompare(){
+  if (updating) return;
+  updating = true;
+  toast("正在下载数据（0/"+SRC_FILES.length+"）…");
+  downloadAll(function(done, total){
+    if (done % 4 === 0 || done === total) toast("正在下载数据（"+done+"/"+total+"）…");
+  }).then(function(texts){
+    toast("正在解析数据…");
+    var nd;
+    try { nd = buildDataFromSources(texts, "", ""); }
+    catch(e){ updating = false; toast("检查失败："+e.message); return; }
+    updating = false;
+    $("updBtn").classList.remove("checking");
+    var same = dataFingerprint(nd) === dataFingerprint(DATA);
+    if (same){
+      try { localStorage.setItem("bjmetro_lastCheck", String(Date.now())); } catch(e){}
+      toast("数据已是最新（"+(META.updated||"—")+"）");
+    } else {
+      var now = new Date();
+      nd.meta.updated = now.getFullYear()+"-"+pad2(now.getMonth()+1)+"-"+pad2(now.getDate());
+      nd.meta.bjSha = "mirror-"+nd.meta.updated;   // 唯一版本标识，确保缓存被识别（区别于内置）
+      applyData(nd);
+      toast("数据已更新（"+(META.updated||"")+"）");
+    }
+  }).catch(function(){
+    updating = false;
+    toast("下载失败，请检查网络后重试");
+  });
+}
+
+/* ================= 每周自动检查（静默，仅首页红点提示） ================= */
+var AUTO_CHECK_INTERVAL = 7 * 24 * 3600 * 1000;   // 7 天
+function autoCheckUpdate(){
+  try {
+    var last = parseInt(localStorage.getItem("bjmetro_lastCheck") || "0", 10);
+    if (Date.now() - last < AUTO_CHECK_INTERVAL) return;   // 未到一周，跳过
+  } catch(e){}
+  // 静默检查：不弹窗，只在发现新数据时亮红点（8 秒超时；失败静默，不自动下载）
+  var ctrl = null, timer = null;
+  try { ctrl = new AbortController(); timer = setTimeout(function(){ try{ ctrl.abort(); }catch(e){} }, 8000); } catch(e){}
+  var opts = {headers: {"Accept":"application/vnd.github+json"}};
+  if (ctrl) opts.signal = ctrl.signal;
+  fetch("https://api.github.com/repos/Mick235711/Beijing-Subway-Tools/commits?path=data/beijing&per_page=1", opts)
+    .then(function(r){ if (timer) clearTimeout(timer); if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(function(arr){
+      if (timer) clearTimeout(timer);
+      try { localStorage.setItem("bjmetro_lastCheck", String(Date.now())); } catch(e){}
+      var latest = (arr && arr[0] && arr[0].sha) || "";
+      if (latest && latest !== (META.bjSha || "")){
+        $("updBtn").classList.add("has-update");   // 有更新，亮红点
+      }
+    })
+    .catch(function(){ if (timer) clearTimeout(timer); /* 静默失败，下次打开页面再试 */ });
+}
+
+/* ================= 首页 ================= */
+function renderHome(){
+  var list = $("favList"), empty = $("favEmpty");
+  var keys = Object.keys(favs);
+  if (!keys.length){ list.innerHTML=""; empty.style.display="block"; $("favHint").style.display="none"; }
+  else { empty.style.display="none"; $("favHint").style.display="block"; }
+  $("homeFavCnt").textContent = keys.length;
+  $("btnClearAll").style.display = keys.length ? "block" : "none";
+  keys.sort(function(a,b){ return favs[b]-favs[a]; });
+  var html = "";
+  for (var i=0;i<keys.length;i++){
+    var k = keys[i], delay = "animation-delay:"+(i*40)+"ms;";
+    if (isDirKey(k)){
+      var pk = splitDirKey(k), rec = null, recs = STATIONS[pk.st]||[];
+      for (var j=0;j<recs.length;j++) if (recs[j].l===pk.l && recs[j].d===pk.d){ rec=recs[j]; break; }
+      var c = LINES[pk.l] || "#9AA1AF";
+      var dirDesc = (rec && rec.t) ? "开往"+rec.t : pk.d;
+      html += '<div class="fav-card" data-key="'+esc(k)+'" data-dir="1" style="'+delay+'">'
+        + '<span class="accent" style="background:'+c+'"></span>'
+        + '<div class="body"><div class="station-name">'+esc(pk.st)+'</div>'
+        + '<div class="fav-lines"><span class="fav-line" style="background:'+c+';width:10px;height:10px;border-radius:3px;"></span>'
+        + '<span style="font-size:12.5px;color:var(--ink-3);margin-left:4px;">'+esc(pk.l)+' · '+esc(dirDesc)+'</span></div>'
+        + '<div class="fav-time"><span class="t">--:--</span><span class="fc"></span></div></div>'
+        + '<div class="fav-cd" data-favkey="'+esc(k)+'"><span class="k">下一班</span><span class="v">—</span></div></div>';
+    } else {
+      var st = k, recs2 = STATIONS[st]||[], dots="";
+      for (var j2=0;j2<recs2.length;j2++){
+        var c2 = LINES[recs2[j2].l] || "#9AA1AF";
+        if (j2<8) dots += '<span class="fav-line" style="background:'+c2+'"></span>';
+      }
+      html += '<div class="fav-card" data-key="'+esc(st)+'" style="'+delay+'">'
+        + '<span class="accent" style="background:'+((recs2[0]&&LINES[recs2[0].l])||"#9AA1AF")+'"></span>'
+        + '<div class="body"><div class="station-name">'+esc(st)+'</div>'
+        + '<div class="fav-lines">'+dots+'</div>'
+        + '<div class="fav-time"><span class="t">--:--</span><span class="fc"></span></div></div>'
+        + '<div class="fav-cd" data-favkey="'+esc(st)+'"><span class="k">下一班</span><span class="v">—</span></div></div>';
+    }
+  }
+  list.innerHTML = html;
+  tickFavNext();
+}
+
+function calcFavNext(k){
+  var recs = null;
+  if (isDirKey(k)){
+    var pk = splitDirKey(k), tmp = STATIONS[pk.st]||[];
+    for (var j=0;j<tmp.length;j++) if (tmp[j].l===pk.l && tmp[j].d===pk.d){ recs=[tmp[j]]; break; }
+  } else recs = STATIONS[k]||[];
+  if (!recs || !recs.length) return null;
+  var base = nowMin(); if (base<270) base += 1440;
+  var best = null;
+  for (var i=0;i<recs.length;i++){
+    var n = calcNext(dirTimes(recs[i]), base);
+    if (n && (!best || n.waitSec < best.n.waitSec)) best = {rec:recs[i], n:n};
+  }
+  return best;
+}
+function tickFavNext(){
+  var nodes = document.querySelectorAll(".fav-cd");
+  for (var i=0;i<nodes.length;i++){
+    var el = nodes[i], k = el.getAttribute("data-favkey");
+    var info = calcFavNext(k);
+    var card = el.parentNode;
+    var tEl = card.querySelector(".fav-time .t"), fcEl = card.querySelector(".fav-time .fc");
+    if (!info){
+      el.className = "fav-cd off";
+      el.innerHTML = '<span class="k">今日</span><span class="v">已收班</span>';
+      if (tEl) tEl.textContent = "—";
+      if (fcEl) fcEl.textContent = "";
+      continue;
+    }
+    var rec = info.rec, n = info.n, hm = fmtHMNextDay(n.abs);
+    var diff = Math.max(0, nextDateOf(n.abs) - new Date());
+    var totalSec = Math.floor(diff/1000), mm = Math.floor(totalSec/60), ss = totalSec%60;
+    var waitTxt = mm>0 ? mm+"分"+pad2(ss)+"秒" : ss+"秒";
+    el.className = "fav-cd";
+    el.innerHTML = '<span class="k">下一班</span><span class="v">'+waitTxt+'</span>'+(hm.nd?'<span class="nd">次日 '+hm.t+'</span>':"");
+    if (tEl) tEl.textContent = hm.t;
+    if (fcEl) fcEl.textContent = isDirKey(k) ? "" : (rec.l+" · "+(rec.t||rec.d));
+  }
+}
+function tickHome(){
+  var n = new Date();
+  $("homeHM").textContent = pad2(n.getHours())+":"+pad2(n.getMinutes());
+  $("homeS").textContent = ":"+pad2(n.getSeconds());
+  $("homeDate").textContent = (n.getMonth()+1)+"月"+n.getDate()+"日 星期"+"日一二三四五六".charAt(n.getDay());
+  $("homeType").textContent = effType()==="wd" ? "工作日" : "双休日";
+  $("homeDataDate").textContent = META.updated || "—";
+}
+
+/* ================= 选择器 ================= */
+var pickerOrder = [];
+function buildPickerIndex(){
+  pickerOrder = Object.keys(LINES);
+  var tabs = $("lineTabs");
+  var html = '<span class="line-tab active" data-line="__ALL__" style="border-color:var(--primary);color:var(--primary);">全部</span>';
+  for (var i=0;i<pickerOrder.length;i++){
+    var ln = pickerOrder[i], c = LINES[ln]||"#9AA1AF";
+    html += '<span class="line-tab" data-line="'+esc(ln)+'" style="border-color:'+c+'66;color:'+c+';">'+esc(ln)+'</span>';
+  }
+  tabs.innerHTML = html;
+  renderPicker("");
+}
+function renderPicker(kw){
+  kw = (kw||"").trim();
+  var active = document.querySelector(".line-tab.active");
+  var activeLine = active ? active.getAttribute("data-line") : "__ALL__";
+  var body = $("pickerBody");
+  var q = kw.toLowerCase(), qIsAlpha = /^[a-z ]*$/.test(q);
+  function match(st){
+    if (!q) return true;
+    if (st.indexOf(q)>=0) return true;
+    if (qIsAlpha){
+      var ini = INITIAL[st]||"";
+      if (ini.indexOf(q)>=0) return true;
+      if (ini.charAt(0)===q.charAt(0) && q.length>1) return true;
+    }
+    return false;
+  }
+  var html = "";
+  for (var li=0;li<pickerOrder.length;li++){
+    var ln = pickerOrder[li];
+    if (activeLine!=="__ALL__" && ln!==activeLine) continue;
+    var c = LINES[ln]||"#9AA1AF", names = [];
+    for (var st in STATIONS){
+      var recs = STATIONS[st];
+      for (var r=0;r<recs.length;r++) if (recs[r].l===ln){ names.push(st); break; }
+    }
+    names.sort();
+    var chips = "";
+    for (var k2=0;k2<names.length;k2++){
+      if (!match(names[k2])) continue;
+      chips += '<span class="station-chip'+(favs[names[k2]]?" faved":"")+'" data-station="'+esc(names[k2])+'">'+esc(names[k2])+'</span>';
+    }
+    if (chips) html += '<div class="line-group"><div class="line-group-head"><span class="line-dot" style="background:'+c+'"></span>'+esc(ln)+'</div>'+chips+'</div>';
+  }
+  body.innerHTML = html || '<div class="empty-tip">没有找到匹配的站点</div>';
+}
+
+/* ================= 详情 ================= */
+function renderStation(){
+  var st = curStation;
+  if (!st || !STATIONS[st]) return;
+  $("stName").textContent = st;
+  var star = $("stStar");
+  star.textContent = favs[st] ? "★" : "☆";
+  star.classList.toggle("on", !!favs[st]);
+  $("btnStar").textContent = favs[st] ? "★" : "☆";
+  $("btnStar").style.color = favs[st] ? "#E8A33D" : "#C9CFDB";
+  var all = STATIONS[st];
+  var recs = curFilter ? all.filter(function(r){ return r.l===curFilter.l && r.d===curFilter.d; }) : all;
+  renderRecs = recs;
+  var fb = $("filterBar");
+  if (curFilter && recs.length){
+    fb.classList.add("show");
+    $("filterText").textContent = "当前仅显示 "+curFilter.l+" · 开往"+(recs[0].t||curFilter.d);
+  } else fb.classList.remove("show");
+  $("stSub").textContent = (curFilter?"已筛选 ":"")+recs.length+" 个方向 · 数据更新于 "+((META.updated)||"—");
+  var html = "";
+  for (var i=0;i<recs.length;i++){
+    var rec = recs[i], c = LINES[rec.l]||"#9AA1AF", dk = dirKey(st, rec.l, rec.d);
+    html += '<div class="dir-card" data-i="'+i+'" style="animation-delay:'+(i*60)+'ms;">'
+      + '<span class="accent" style="background:'+c+'"></span>'
+      + '<div class="dir-head">'
+      +   '<span class="line-badge" style="background:'+c+'">'+esc(rec.l)+'</span>'
+      +   '<span class="dir-name">'+esc(rec.d)+'</span>'
+      +   '<button class="dir-star'+(favs[dk]?" on":"")+'" data-fav="'+esc(dk)+'">'+(favs[dk]?"★":"☆")+'</button>'
+      + '</div>'
+      + '<div class="dir-sub">'
+      +   (function(){
+            var s = rec.t ? '开往 '+esc(rec.t) : '';
+            if (rec.n) s += (s ? '<span class="sep">·</span>' : '') + '下一站 <b>'+esc(rec.n)+'</b>';
+            return s;
+          })()
+      + '</div>'
+      + '<div class="dir-card-body">'
+      +   '<div class="countdown"><div class="label">下一趟列车</div>'
+      +   '<div class="big num" id="cd-'+i+'">—</div>'
+      +   '<div class="status" id="cdst-'+i+'" style="display:none;"></div></div>'
+      +   '<div class="next-list" id="nl-'+i+'"></div>'
+      +   '<div class="first-last">'
+      +     '<div class="fl-item"><div class="k">首班</div><div class="v num" id="fl-'+i+'">—</div></div>'
+      +     '<div class="fl-item"><div class="k">末班</div><div class="v num" id="ll-'+i+'">—</div></div>'
+      +   '</div>'
+      + '</div></div>';
+  }
+  $("dirList").innerHTML = html;
+  lastNextIdx = {}; expandedAll = {};
+  renderDirBody();
+  for (var k2=0;k2<recs.length;k2++) renderFL(recs[k2], k2);
+}
+
+function renderDirBody(){
+  var st = curStation;
+  if (!st || !STATIONS[st]) return;
+  for (var i=0;i<renderRecs.length;i++){
+    var rec = renderRecs[i], times = dirTimes(rec);
+    var base = nowMin(); if (base<270) base += 1440;
+    var next = calcNext(times, base);
+    var cd = $("cd-"+i), cds = $("cdst-"+i);
+    if (next){
+      var diff = Math.max(0, nextDateOf(next.abs) - new Date());
+      var totalSec = Math.floor(diff/1000), mm = Math.floor(totalSec/60), ss = totalSec%60;
+      cd.innerHTML = mm>0
+        ? mm+'<span class="unit">分</span>'+ss+'<span class="unit">秒</span>'
+        : ss+'<span class="unit">秒</span>';
+      cds.style.display="none";
+      if (!lastNextIdx[i] || lastNextIdx[i]!==next.idx){
+        renderNextList(rec, times, next, i);
+        lastNextIdx[i] = next.idx;
+      }
+    } else {
+      cd.innerHTML = "—";
+      var gap = calcFirstGap(times, base);
+      if (gap!=null){
+        cds.style.display="block"; cds.className="status warn";
+        cds.textContent = "今日班次已结束 · 距首班还有 "+Math.floor(gap/60)+" 分钟";
+      } else {
+        cds.style.display="block"; cds.className="status";
+        cds.textContent = "今日运营已结束";
+      }
+      if (lastNextIdx[i]!==undefined){ $("nl-"+i).innerHTML=""; lastNextIdx[i]=undefined; }
+    }
+  }
+}
+
+function allTimesHTML(times, nextAbs){
+  var html = "";
+  for (var i=0;i<times.length;i++){
+    var hm = fmtHMNextDay(times[i]);
+    var isCur = nextAbs != null && times[i] === nextAbs;
+    html += '<span class="at-chip'+(hm.nd?" nd":"")+(isCur?" cur":"")+'">'+hm.t+(hm.nd?"<i>次日</i>":"")+'</span>';
+  }
+  return html;
+}
+function renderNextList(rec, times, next, i){
+  var box = $("nl-"+i);
+  var html = '<div class="nl-title">最近班次</div>';
+  var cnt = 0;
+  for (var j=next.idx;j<times.length && cnt<5;j++, cnt++){
+    var hm = fmtHMNextDay(times[j]), wait = times[j]-next.abs, isCur = j===next.idx;
+    var tag = isCur ? '<span class="tag">下一班</span>' : (hm.nd ? '<span class="tag next-day">次日</span>' : "");
+    var sub = isCur ? "" : (wait<=60 ? '<span class="sub">'+wait+'分后</span>' : '<span class="sub">约'+Math.round(wait/60)+'小时后</span>');
+    html += '<div class="next-row'+(isCur?" cur":"")+'"><span class="t num">'+hm.t+'</span>'+tag+sub+'</div>';
+  }
+  var isExp = !!expandedAll[i];
+  html += '<button class="show-all'+(isExp?" open":"")+'" data-i="'+i+'">'+(isExp?"收起":"展开")+'全部班次<span class="chev">▾</span></button>';
+  if (isExp){
+    // 当前生效组索引（按星期几）
+    var nowD = new Date();
+    if (nowD.getHours()<4 || (nowD.getHours()===4 && nowD.getMinutes()<30)) nowD = new Date(nowD.getTime()-86400000);
+    var dow = nowD.getDay(), dowIdx = dow===0 ? 6 : dow-1;
+    var curGi = (rec.dow && rec.dow.charAt(dowIdx)>="0" && rec.dow.charAt(dowIdx)<="9") ? parseInt(rec.dow.charAt(dowIdx),10) : 0;
+    var gl = rec.gl || [];
+    for (var gi=0; gi<(rec.g||[]).length; gi++){
+      var arr = rec.g[gi];
+      var label = gl[gi] || ("班次 "+(gi+1));
+      var na = (gi===curGi) ? next.abs : null;   // 仅当前生效组高亮下一班
+      html += '<div class="all-block"><div class="all-title">'+esc(label)+'班次 · '+arr.length+' 班</div>'
+        + '<div class="all-grid">'+allTimesHTML(arr, na)+'</div></div>';
+    }
+  }
+  box.innerHTML = html;
+}
+function renderFL(rec, i){
+  var times = dirTimes(rec);
+  var f = times.length ? fmtHMNextDay(times[0]) : null;
+  var l = times.length ? fmtHMNextDay(times[times.length-1]) : null;
+  $("fl-"+i).innerHTML = f ? f.t+(f.nd?'<small>次日</small>':"") : "—";
+  $("ll-"+i).innerHTML = l ? l.t+(l.nd?'<small>次日</small>':"") : "—";
+}
+
+/* ================= 收藏 ================= */
+function saveFavs(){ try{ localStorage.setItem("bjmetro_favs", JSON.stringify(favs)); }catch(e){} }
+function toggleFav(k){
+  if (favs[k]) delete favs[k];
+  else favs[k] = Date.now();
+  saveFavs();
+  renderHome();
+  if (curStation===k){
+    var star=$("stStar"); star.textContent = favs[k]?"★":"☆"; star.classList.toggle("on", !!favs[k]);
+    $("btnStar").textContent = favs[k]?"★":"☆";
+    $("btnStar").style.color = favs[k] ? "#E8A33D" : "#C9CFDB";
+  }
+  if (curStation && $("view-station").classList.contains("active")) renderStation();
+  renderPicker($("searchInput").value);
+}
+
+/* ================= 事件 ================= */
+/* 收藏迁移：旧数据源线路名 → 新名（如 "4号线大兴线" → "4号线"） */
+function migrateFavs(){
+  var alias = META.lineAliases || {};
+  var changed = false, nf = {};
+  for (var k in favs){
+    var nk = k;
+    if (isDirKey(k)){
+      var p = splitDirKey(k);
+      if (alias[p.l]){ p.l = alias[p.l]; nk = dirKey(p.st, p.l, p.d); changed = true; }
+    }
+    nf[nk] = favs[k];
+  }
+  if (changed){ favs = nf; saveFavs(); }
+}
+
+function init(){
+  migrateFavs();
+  buildPickerIndex();
+  renderHome();
+  tickHome();
+  autoCheckUpdate();
+
+  $("btnPick").addEventListener("click", function(){ navTo("view-picker", {v:"picker"}); });
+  $("btnBackPicker").addEventListener("click", function(){ history.back(); });
+  $("btnBackStation").addEventListener("click", function(){ history.back(); });
+
+  // 手机返回键/手势返回：恢复到上一级视图
+  window.addEventListener("popstate", function(e){ onPopState(e.state || {v:"home"}); });
+
+  // 搜索
+  $("searchInput").addEventListener("input", function(){
+    $("searchClear").style.display = this.value ? "block" : "none";
+    renderPicker(this.value);
+  });
+  $("searchClear").addEventListener("click", function(){
+    $("searchInput").value = "";
+    $("searchClear").style.display = "none";
+    renderPicker("");
+  });
+
+  // 线路 tab
+  $("lineTabs").addEventListener("click", function(e){
+    var t = e.target.closest(".line-tab");
+    if (!t) return;
+    this.querySelectorAll(".line-tab").forEach(function(x){ x.classList.remove("active"); });
+    t.classList.add("active");
+    var c = t.getAttribute("data-line")==="__ALL__" ? "var(--primary)" : (LINES[t.getAttribute("data-line")]||"#2850E6");
+    t.style.background = c; t.style.color = "#fff";
+    this.querySelectorAll(".line-tab:not(.active)").forEach(function(x){ x.style.background = ""; x.style.color = ""; });
+    renderPicker($("searchInput").value);
+  });
+
+  // 选站
+  $("pickerBody").addEventListener("click", function(e){
+    var t = e.target.closest(".station-chip");
+    if (!t) return;
+    curStation = t.getAttribute("data-station");
+    curFilter = null;
+    $("searchInput").value = ""; $("searchClear").style.display = "none";
+    localStorage.setItem("bjmetro_last", curStation);
+    renderStation();
+    navTo("view-station", {v:"station", s:curStation});
+  });
+
+  // 收藏列表：点击进入；长按删除
+  var list = $("favList");
+  function clearPress(){ clearTimeout(pressTimer); pressTimer = null; pressKey = null; }
+  list.addEventListener("pointerdown", function(e){
+    var card = e.target.closest(".fav-card");
+    if (!card || e.button > 0) return;
+    var k = card.getAttribute("data-key");
+    clearPress();
+    pressKey = k;
+    pressFired = false;
+    pressTimer = setTimeout(function(){
+      pressFired = true;
+      card.classList.add("pressing");
+      pendingAction = {type:"one", key:k};
+      var label = isDirKey(k) ? (function(){ var p=splitDirKey(k); return p.st+" · "+p.l+" · "+(p.d); })() : k;
+      openSheet("删除收藏？", "「"+label+"」将从收藏中移除", "删除收藏");
+      navigator.vibrate && navigator.vibrate(30);
+    }, 520);
+  });
+  list.addEventListener("pointerup", function(){ clearPress(); });
+  list.addEventListener("pointercancel", function(){ clearPress(); });
+  list.addEventListener("pointermove", function(){ clearPress(); });
+  list.addEventListener("pointerleave", function(){ clearPress(); });
+  list.addEventListener("click", function(e){
+    if (e.target.closest(".fav-del")) return;
+    if (pressFired){ pressFired = false; return; }
+    var card = e.target.closest(".fav-card");
+    if (!card) return;
+    var k = card.getAttribute("data-key");
+    if (isDirKey(k)){
+      var pk = splitDirKey(k);
+      curStation = pk.st; curFilter = {l:pk.l, d:pk.d};
+    } else {
+      curStation = k; curFilter = null;
+    }
+    localStorage.setItem("bjmetro_last", curStation);
+    $("searchInput").value = ""; $("searchClear").style.display = "none";
+    renderStation();
+    navTo("view-station", {v:"station", s:curStation, l:curFilter?curFilter.l:null, d:curFilter?curFilter.d:null});
+  });
+
+  // 详情：方向收藏 / 展开全部
+  $("dirList").addEventListener("click", function(e){
+    var btn = e.target.closest(".dir-star");
+    if (btn){
+      e.stopPropagation();
+      toggleFav(btn.getAttribute("data-fav"));
+      return;
+    }
+    var sa = e.target.closest(".show-all");
+    if (sa){
+      var idx = +sa.getAttribute("data-i");
+      expandedAll[idx] = !expandedAll[idx];
+      var rec = renderRecs[idx], times = rec ? dirTimes(rec) : [];
+      var base = nowMin(); if (base<270) base += 1440;
+      var n = calcNext(times, base);
+      if (n) renderNextList(rec, times, n, idx);
+      if (expandedAll[idx]) scrollToHighlight(idx);
+      return;
+    }
+  });
+
+  // 展开后自动定位到高亮（下一班）时刻
+  function scrollToHighlight(i){
+    var cur = $("nl-"+i).querySelector(".at-chip.cur");
+    if (!cur) return;
+    setTimeout(function(){
+      try { cur.scrollIntoView({behavior:"smooth", block:"center"}); }
+      catch(e){ cur.scrollIntoView(); }
+    }, 80);
+  }
+
+  // 顶部全站收藏
+  function popStar(){
+    var s = $("stStar");
+    s.classList.remove("pop"); void s.offsetWidth; s.classList.add("pop");
+  }
+  $("stStar").addEventListener("click", function(){
+    if (curStation){ toggleFav(curStation); popStar(); }
+  });
+  $("btnStar").addEventListener("click", function(){
+    if (curStation){ toggleFav(curStation); popStar(); }
+  });
+
+  // 过滤清除
+  $("filterClear").addEventListener("click", function(){
+    curFilter = null;
+    renderStation();
+  });
+
+  // 删除弹层
+  $("sheetMask").addEventListener("click", closeSheet);
+  $("sheetCancel").addEventListener("click", closeSheet);
+  $("sheetDel").addEventListener("click", onSheetDel);
+
+  // 手动检查更新：点击"数据更新"→ 确认框 → 对比 GitHub
+  $("updBtn").addEventListener("click", function(){
+    if (checking) return;
+    openSheet("检查数据更新", "将连接 GitHub 检查时刻表是否有新版本，仅在发现新数据时提示，不消耗流量下载数据。", "检查更新", "update");
+  });
+
+  // 清空全部收藏
+  $("btnClearAll").addEventListener("click", function(){
+    var n = Object.keys(favs).length;
+    if (!n) return;
+    pendingAction = {type:"all"};
+    openSheet("清空全部收藏？", n+" 个收藏将被全部移除，此操作不可恢复", "全部清空");
+  });
+
+  // 返回顶部
+  var bt = $("backTop");
+  window.addEventListener("scroll", function(){
+    bt.style.display = window.scrollY>600 ? "flex" : "none";
+  });
+  bt.addEventListener("click", function(){ window.scrollTo({top:0,behavior:"smooth"}); });
+
+  // 数据说明
+  $("dataNote").textContent = "数据来源：beijing-subway-schedule（CC BY-SA 4.0）· 更新于 "+(META.updated||"—")
+    +" · 时刻为计划时间，实际以现场为准";
+
+  // 每秒刷新
+  setInterval(function(){
+    tickHome();
+    tickFavNext();
+    if (curStation) renderDirBody();
+  }, 1000);
+
+  // 默认打开首页；仅当 URL 带 ?s=站名 参数时直达该站详情（分享/调试用）
+  var qs = null;
+  try { qs = new URLSearchParams(location.search).get("s"); } catch(e){}
+  if (qs && STATIONS[qs]){
+    curStation = qs;
+    renderStation();
+    showView("view-station");
+    try { history.replaceState({v:"station", s:qs}, ""); } catch(e){}
+  } else {
+    try { history.replaceState({v:"home"}, ""); } catch(e){}
+  }
+}
+init();
+</script>
+</body>
+</html>

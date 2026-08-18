@@ -1,0 +1,19 @@
+# 数据源克隆缓存（构建时自动 clone，体积大不入库）
+data/raw/
+
+# Python
+__pycache__/
+*.pyc
+
+# 工作区个人数据
+.workbuddy/
+
+# 部署中间产物（与 beijing-metro.html 重复）
+deploy/
+
+# 二维码（分享链接会变）
+地铁时刻表-二维码.png
+
+# 系统
+.DS_Store
+Thumbs.db
