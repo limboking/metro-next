@@ -258,9 +258,9 @@ body{
 .at-chip.cur i{color:#dcd2ff;}
 .at-chip i.term{color:var(--ink-3);margin-left:3px;font-size:10px;}
 .at-chip.cur i.term{color:#dce4f5;}
-.cd-term{font-size:13px;color:#C2410C;font-weight:600;margin-top:5px;}
-.cd-term b{color:#C2410C;}
-.next-row .tag.partial{background:#FFF1E6;color:#C2410C;margin-left:4px;}
+.cd-term{font-size:13px;color:#C2410C;font-weight:600;margin-top:6px;display:flex;flex-wrap:wrap;gap:5px;justify-content:center;}
+.cd-term .mk{background:#FFF1E6;color:#C2410C;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600;}
+.next-row .tag.mk{background:#FFF1E6;color:#C2410C;margin-left:4px;}
 .first-last{display:flex;gap:9px;margin-top:13px;}
 .fl-item{flex:1;background:var(--surface-2);border-radius:12px;padding:9px 10px;text-align:center;}
 .fl-item .k{font-size:11px;color:var(--ink-3);}
@@ -417,18 +417,31 @@ function expandDataG(d){
         if (Array.isArray(grp) && grp.length && typeof grp[0] === "number") continue;  // 已展开，跳过
         g[gi] = expandSchedule(grp);
       }
-      // 区间车：xt 转成每组的 {时刻: 终点} 映射，便于 O(1) 查询
-      if (rec.xt){
-        rec._term = rec.xt.map(function(grp){
-          if (!grp) return null;
-          var m = {};
-          for (var term in grp){ for (var k=0;k<grp[term].length;k++) m[grp[term][k]] = term; }
-          return m;
-        });
+      // 被跳站：从发车时刻里排除快车经过时刻
+      if (rec.xr){
+        for (var gi2=0;gi2<rec.xr.length;gi2++){
+          var ex = rec.xr[gi2];
+          if (ex && ex.length && g && g[gi2]){
+            var keep = [], exset = {};
+            for (var e=0;e<ex.length;e++) exset[ex[e]] = 1;
+            for (var k2=0;k2<g[gi2].length;k2++) if (!exset[g[gi2][k2]]) keep.push(g[gi2][k2]);
+            g[gi2] = keep;
+          }
+        }
       }
+      // 区间车终点 / 始发站 / 快车：转成每组的 {时刻: 属性} 映射
+      rec._term = rec.xt ? rec.xt.map(grpMap) : null;
+      rec._start = rec.xs ? rec.xs.map(grpMap) : null;
+      rec._fast = rec.xf ? rec.xf.map(grpMap) : null;
     }
   }
   return d;
+}
+function grpMap(grp){
+  if (!grp) return null;
+  var m = {};
+  for (var term in grp){ for (var k=0;k<grp[term].length;k++) m[grp[term][k]] = term; }
+  return m;
 }
 function loadBestData(){
   var builtin = null;
@@ -580,47 +593,67 @@ function filterTime(hhmm){
   if (m == null) return null;
   return m < 270 ? m+1440 : m;
 }
-/* 按 schedule filter 语义标记区间车：返回 {时刻: 终点站}（与 Python apply_filters 一致） */
-function applyFilters(times, filters, routes){
-  var result = {}, tset = {};
+function filterHits(times, f){
+  var hits = [];
+  if (Array.isArray(f.trains)){
+    for (var ti=0;ti<f.trains.length;ti++){
+      var m = filterTime(f.trains[ti]);
+      if (m != null) hits.push(m);
+    }
+    return hits;
+  }
+  var ft = filterTime(f.first_train);
+  var step = (f.skip_trains || 0) + 1;
+  var cnt = f.count;
+  var until = filterTime(f.until);
+  var start = 0;
+  if (ft != null){
+    var idx = times.indexOf(ft);
+    if (idx >= 0) start = idx;
+    else { for (var s=0;s<times.length;s++){ if (times[s] >= ft){ start = s; break; } if (s === times.length-1) start = times.length; } }
+  }
+  var i = start;
+  while (i < times.length){
+    var t = times[i];
+    if (until != null && t > until) break;
+    hits.push(t);
+    if (cnt != null && hits.length >= cnt) break;
+    i += step;
+  }
+  return hits;
+}
+/* 按 schedule filter 语义标记班次属性（与 Python apply_filters 一致），返回 {term, start, fast, exclude} */
+function applyFilters(times, filters, routes, station){
+  var term = {}, start = {}, fast = {}, exclude = [], tset = {};
   for (var i=0;i<times.length;i++) tset[times[i]] = 1;
   for (var fi=0; fi<(filters||[]).length; fi++){
     var f = filters[fi];
     if (!f || typeof f !== "object") continue;
     var route = (routes && routes[f.plan]) || {};
-    var term = route.ends_with;
-    if (!term) continue;
-    var hits = [];
-    if (Array.isArray(f.trains)){
-      for (var ti=0;ti<f.trains.length;ti++){
-        var m = filterTime(f.trains[ti]);
-        if (m != null) hits.push(m);
-      }
-    } else {
-      var ft = filterTime(f.first_train);
-      var step = (f.skip_trains || 0) + 1;
-      var cnt = f.count;
-      var until = filterTime(f.until);
-      var start = 0;
-      if (ft != null){
-        var idx = times.indexOf(ft);
-        if (idx >= 0) start = idx;
-        else { for (var s=0;s<times.length;s++){ if (times[s] >= ft){ start = s; break; } if (s === times.length-1) start = times.length; } }
-      }
-      var i = start;
-      while (i < times.length){
-        var t = times[i];
-        if (until != null && t > until) break;
-        hits.push(t);
-        if (cnt != null && hits.length >= cnt) break;
-        i += step;
-      }
-    }
+    var termName = route.ends_with;
+    var startName = route.starts_with;
+    var skipList = route.skip;
+    var isFast = Array.isArray(skipList) && skipList.length > 0;
+    var hits = filterHits(times, f);
     for (var hi=0;hi<hits.length;hi++){
-      if (tset[hits[hi]]) result[hits[hi]] = term;
+      var t = hits[hi];
+      if (!tset[t]) continue;
+      if (isFast){
+        if (skipList.indexOf(station) >= 0){ exclude.push(t); continue; }   // 被跳站：快车经过不停
+        fast[t] = f.plan;
+      }
+      if (startName) start[t] = startName;
+      if (termName) term[t] = termName;
     }
   }
-  return result;
+  exclude.sort(function(a,b){return a-b;});
+  return {term: term, start: start, fast: fast, exclude: exclude};
+}
+function invertMap(m){
+  var out = {};
+  for (var t in m){ (out[m[t]] = out[m[t]] || []).push(parseInt(t,10)); }
+  for (var v in out) out[v].sort(function(a,b){return a-b;});
+  return Object.keys(out).length ? out : null;
 }
 function cleanName(name){
   return String(name).replace(/[（(][^）)]*[）)]$/,"").trim();
@@ -659,7 +692,7 @@ function directionMeta(tr, direction, sn, stIdx){
 }
 /* 由 28 个 json5 文本构建完整站点索引（与 Python build_index 逻辑一致） */
 function buildDataFromSources(texts, newBjSha, newDate){
-  var lines = {}, stations = {};
+  var lines = {}, stations = {}, fastSkip = {};
   for (var fi=0; fi<SRC_FILES.length; fi++){
     var d;
     try { d = parseJSON5(texts[fi]); }
@@ -671,6 +704,15 @@ function buildDataFromSources(texts, newBjSha, newDate){
     var sn = (snRaw||[]).map(cleanName);
     var dg = d.date_groups || {};
     var tr = d.train_routes || {};
+    // 收集快车跳站列表（全局）
+    for (var dr in tr){
+      var routings = tr[dr];
+      if (!routings || typeof routings !== "object") continue;
+      for (var rname in routings){
+        var r = routings[rname];
+        if (r && Array.isArray(r.skip) && r.skip.length) fastSkip[name+"|"+dr+"|"+rname] = r.skip;
+      }
+    }
     var tt = {};
     for (var tk in (d.timetable||{})) tt[cleanName(tk)] = d.timetable[tk];
     for (var si=0; si<sn.length; si++){
@@ -683,6 +725,9 @@ function buildDataFromSources(texts, newBjSha, newDate){
         var groupTimes = {};   // 展开结果（去重 key）
         var groupRaw = {};     // 原始 delta schedule（存储）
         var groupTerm = {};    // {gname: {时刻: 终点站}} 区间车
+        var groupStart = {};   // {gname: {时刻: 始发站}} 始发车
+        var groupFast = {};    // {gname: {时刻: 快车名}} 快车
+        var groupExcl = {};    // {gname: [排除时刻]} 被跳站快车
         for (var gname in groups){
           var gd = groups[gname];
           if (!gd || typeof gd !== "object") continue;
@@ -690,21 +735,25 @@ function buildDataFromSources(texts, newBjSha, newDate){
           if (arr && arr.length){
             groupTimes[gname] = arr;
             groupRaw[gname] = gd.schedule;
-            groupTerm[gname] = applyFilters(arr, gd.filters, routes);
+            var af = applyFilters(arr, gd.filters, routes, st);
+            groupTerm[gname] = af.term;
+            groupStart[gname] = af.start;
+            groupFast[gname] = af.fast;
+            groupExcl[gname] = af.exclude;
           }
         }
         if (!Object.keys(groupTimes).length) continue;
         var gnames = Object.keys(groups);
-        var uniq = [], idxMap = {}, gl = [], xt = [];
+        var uniq = [], idxMap = {}, gl = [], xt = [], xs = [], xf = [], xr = [];
         for (var g2=0; g2<gnames.length; g2++){
           var gn = gnames[g2], key = (groupTimes[gn]||[]).join(",");
           if (!key) continue;
           if (!(key in idxMap)){
             idxMap[key] = uniq.length; uniq.push(groupRaw[gn]); gl.push(gn);
-            var grpXt = {}, tm = groupTerm[gn] || {};
-            for (var t in tm){ (grpXt[tm[t]] = grpXt[tm[t]] || []).push(parseInt(t,10)); }
-            for (var term in grpXt) grpXt[term].sort(function(a,b){return a-b;});
-            xt.push(Object.keys(grpXt).length ? grpXt : null);
+            xt.push(invertMap(groupTerm[gn]));
+            xs.push(invertMap(groupStart[gn]));
+            xf.push(invertMap(groupFast[gn]));
+            xr.push((groupExcl[gn] && groupExcl[gn].length) ? groupExcl[gn] : null);
           }
         }
         if (!uniq.length) continue;
@@ -722,6 +771,9 @@ function buildDataFromSources(texts, newBjSha, newDate){
         var recs = stations[st] || (stations[st] = []);
         var rec = {l:name, d:direction, t:dm.t, n:dm.n, g:uniq, gl:gl, dow:dow};
         for (var xi=0;xi<xt.length;xi++){ if (xt[xi]){ rec.xt = xt; break; } }
+        for (var xj=0;xj<xs.length;xj++){ if (xs[xj]){ rec.xs = xs; break; } }
+        for (var xk=0;xk<xf.length;xk++){ if (xf[xk]){ rec.xf = xf; break; } }
+        for (var xl=0;xl<xr.length;xl++){ if (xr[xl]){ rec.xr = xr; break; } }
         recs.push(rec);
       }
     }
@@ -733,7 +785,7 @@ function buildDataFromSources(texts, newBjSha, newDate){
   }).forEach(function(ln){ ordered[ln] = lines[ln]; });
   return {
     meta: {
-      version: DATA.meta.version || "3.0",
+      version: DATA.meta.version || "3.1",
       fmt: DATA_FORMAT,
       updated: newDate || "",
       commitSha: DATA.meta.commitSha || "",
@@ -741,7 +793,8 @@ function buildDataFromSources(texts, newBjSha, newDate){
       lines: Object.keys(ordered).length,
       stations: Object.keys(stations).length,
       source: "Beijing-Subway-Tools (MIT) · 网页自助更新",
-      lineAliases: DATA.meta.lineAliases || {}
+      lineAliases: DATA.meta.lineAliases || {},
+      fastSkip: fastSkip
     },
     lines: ordered,
     stations: stations,
@@ -805,6 +858,35 @@ function termOf(rec, gi, time){
   var tm = rec._term && rec._term[gi];
   if (tm && tm[time] !== undefined) return tm[time];
   return rec.t;
+}
+/* 某班次的始发站：始发车返回 xs 始发站，否则 null */
+function startOf(rec, gi, time){
+  var sm = rec._start && rec._start[gi];
+  return sm ? sm[time] : null;
+}
+/* 某班次的快车名：快车返回 xf 快车名，否则 null */
+function fastOf(rec, gi, time){
+  var fm = rec._fast && rec._fast[gi];
+  return fm ? fm[time] : null;
+}
+/* 快车跳过的站列表（从 meta.fastSkip 查） */
+function fastSkipOf(rec, fastName){
+  var fs = META && META.fastSkip;
+  return fs ? fs[rec.l+"|"+rec.d+"|"+fastName] : null;
+}
+/* 某班次的所有标记（快车/始发/区间终点），供各显示位置统一使用 */
+function marksOf(rec, gi, time){
+  var marks = [];
+  var fast = fastOf(rec, gi, time);
+  if (fast){
+    var skip = fastSkipOf(rec, fast);
+    marks.push(skip && skip.length ? ("快车·跳"+skip.length+"站") : "快车");
+  }
+  var start = startOf(rec, gi, time);
+  if (start) marks.push(start+"始发");
+  var term = termOf(rec, gi, time);
+  if (term && term !== rec.t) marks.push("区间·"+term);
+  return marks;
 }
 
 /* ================= 视图 ================= */
@@ -1116,8 +1198,17 @@ function tickFavNext(){
       continue;
     }
     var rec = info.rec, n = info.n, hm = fmtHMNextDay(n.abs);
-    var term = termOf(rec, curGi(rec), n.abs);
+    var gi = curGi(rec);
+    var term = termOf(rec, gi, n.abs);
+    var fast = fastOf(rec, gi, n.abs);
+    var start = startOf(rec, gi, n.abs);
     var isPartial = term && term !== rec.t;
+    var extra = [];   // 快车/始发标记（区间终点在 fc 正文里体现）
+    if (fast){
+      var skip = fastSkipOf(rec, fast);
+      extra.push(skip && skip.length ? ("快车·跳"+skip.length+"站") : "快车");
+    }
+    if (start) extra.push(start+"始发");
     var diff = Math.max(0, nextDateOf(n.abs) - new Date());
     var totalSec = Math.floor(diff/1000), mm = Math.floor(totalSec/60), ss = totalSec%60;
     var waitTxt = mm>0 ? mm+"分"+pad2(ss)+"秒" : ss+"秒";
@@ -1125,12 +1216,15 @@ function tickFavNext(){
     el.innerHTML = '<span class="k">下一班</span><span class="v">'+waitTxt+'</span>'+(hm.nd?'<span class="nd">次日 '+hm.t+'</span>':"");
     if (tEl) tEl.textContent = hm.t;
     if (fcEl){
+      var parts = [];
       if (isDirKey(k)){
-        fcEl.textContent = isPartial ? ("区间·"+term) : "";
+        if (isPartial) parts.push("区间·"+term);
       } else {
-        fcEl.textContent = rec.l+" · "+(isPartial ? term : (rec.t||rec.d));
+        parts.push(rec.l+" · "+(isPartial ? term : (rec.t||rec.d)));
       }
-      fcEl.style.color = isPartial ? "#C2410C" : "";
+      parts = parts.concat(extra);
+      fcEl.textContent = parts.join(" · ");
+      fcEl.style.color = (extra.length || isPartial) ? "#C2410C" : "";
     }
   }
 }
@@ -1262,11 +1356,11 @@ function renderDirBody(){
         ? mm+'<span class="unit">分</span>'+ss+'<span class="unit">秒</span>'
         : ss+'<span class="unit">秒</span>';
       cds.style.display="none";
-      // 下一班若是区间车，显示真实终点
-      var nxtTerm = termOf(rec, gi, next.abs);
-      if (nxtTerm && nxtTerm !== rec.t){
+      // 下一班若是区间车/快车/始发车，显示标记
+      var marks = marksOf(rec, gi, next.abs);
+      if (marks.length){
         cdt.style.display="block";
-        cdt.innerHTML = '区间车 · 开往 <b>'+esc(nxtTerm)+'</b>';
+        cdt.innerHTML = marks.map(function(m){ return '<span class="mk">'+esc(m)+'</span>'; }).join(' · ');
       } else {
         cdt.style.display="none";
       }
@@ -1295,10 +1389,9 @@ function allTimesHTML(times, nextAbs, rec, gi){
   for (var i=0;i<times.length;i++){
     var hm = fmtHMNextDay(times[i]);
     var isCur = nextAbs != null && times[i] === nextAbs;
-    var term = rec ? termOf(rec, gi, times[i]) : null;
-    var isPartial = rec && term && term !== rec.t;
+    var marks = rec ? marksOf(rec, gi, times[i]) : [];
     html += '<span class="at-chip'+(hm.nd?" nd":"")+(isCur?" cur":"")+'">'
-      + hm.t + (isPartial?'<i class="term">'+esc(term)+'</i>':"") + (hm.nd?'<i>次日</i>':"")
+      + hm.t + marks.map(function(m){ return '<i class="term">'+esc(m)+'</i>'; }).join("") + (hm.nd?'<i>次日</i>':"")
       + '</span>';
   }
   return html;
@@ -1310,10 +1403,9 @@ function renderNextList(rec, times, next, i){
   var cnt = 0;
   for (var j=next.idx;j<times.length && cnt<5;j++, cnt++){
     var hm = fmtHMNextDay(times[j]), wait = times[j]-next.abs, isCur = j===next.idx;
-    var term = termOf(rec, gi, times[j]);
-    var isPartial = term && term !== rec.t;
+    var marks = marksOf(rec, gi, times[j]);
     var tag = isCur ? '<span class="tag">下一班</span>' : (hm.nd ? '<span class="tag next-day">次日</span>' : "");
-    if (isPartial) tag += '<span class="tag partial">区间·'+esc(term)+'</span>';
+    for (var mk=0;mk<marks.length;mk++) tag += '<span class="tag mk">'+esc(marks[mk])+'</span>';
     var sub = isCur ? "" : (wait<=60 ? '<span class="sub">'+wait+'分后</span>' : '<span class="sub">约'+Math.round(wait/60)+'小时后</span>');
     html += '<div class="next-row'+(isCur?" cur":"")+'"><span class="t num">'+hm.t+'</span>'+tag+sub+'</div>';
   }

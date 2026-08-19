@@ -110,14 +110,50 @@ def filter_time(hhmm):
     return m + 1440 if m < 270 else m
 
 
-def apply_filters(times, filters, routes):
-    """按 schedule filter 语义标记区间车：返回 {绝对分钟时刻: 终点站}（仅 ends_with != 全程终点）。
+def filter_hits(times, f):
+    """计算 filter 命中的时刻列表（绝对分钟）。trains 直接指定；否则 first_train+skip_trains/count/until。"""
+    hits = []
+    if isinstance(f.get("trains"), list):
+        for t in f["trains"]:
+            m = filter_time(t)
+            if m is not None:
+                hits.append(m)
+        return hits
+    ft = filter_time(f.get("first_train"))
+    skip = f.get("skip_trains", 0) or 0
+    step = skip + 1
+    cnt = f.get("count")
+    until = filter_time(f.get("until"))
+    start = 0
+    if ft is not None:
+        try:
+            start = times.index(ft)
+        except ValueError:
+            start = next((i for i, t in enumerate(times) if t >= ft), len(times))
+    i = start
+    while i < len(times):
+        t = times[i]
+        if until is not None and t > until:
+            break
+        hits.append(t)
+        if cnt is not None and len(hits) >= cnt:
+            break
+        i += step
+    return hits
 
-    filters 语义（见数据源 docs/specification.md）：
-      - trains 存在 → 直接这些时刻
-      - 否则从 first_train 在时刻序列中定位，步长 skip_trains+1 取班，直到 count 趟或 until 时刻（含）
+
+def apply_filters(times, filters, routes, station):
+    """按 schedule filter 语义标记班次属性，返回 (term_map, start_map, fast_map, exclude)。
+
+    - term_map: {时刻: 终点站}（区间车/回库车，ends_with）
+    - start_map: {时刻: 始发站}（出库车/始发空车，starts_with）
+    - fast_map: {时刻: 快车名}（跳站快车，skip 列表非空，仅停靠站）
+    - exclude:  [时刻]（被快车跳过的站的快车经过时刻，需从发车时刻排除）
     """
-    result = {}
+    term_map = {}
+    start_map = {}
+    fast_map = {}
+    exclude = set()
     tset = set(times)
     for f in (filters or []):
         if not isinstance(f, dict):
@@ -125,39 +161,32 @@ def apply_filters(times, filters, routes):
         plan = f.get("plan")
         route = (routes or {}).get(plan) or {}
         term = route.get("ends_with")
-        if not term:
-            continue   # 无 ends_with（出库/始发车，终点=全程终点，不影响终点显示）
-        hits = []
-        if isinstance(f.get("trains"), list):
-            for t in f["trains"]:
-                m = filter_time(t)
-                if m is not None:
-                    hits.append(m)
-        else:
-            ft = filter_time(f.get("first_train"))
-            skip = f.get("skip_trains", 0) or 0
-            step = skip + 1
-            cnt = f.get("count")
-            until = filter_time(f.get("until"))
-            start = 0
-            if ft is not None:
-                try:
-                    start = times.index(ft)
-                except ValueError:
-                    start = next((i for i, t in enumerate(times) if t >= ft), len(times))
-            i = start
-            while i < len(times):
-                t = times[i]
-                if until is not None and t > until:
-                    break
-                hits.append(t)
-                if cnt is not None and len(hits) >= cnt:
-                    break
-                i += step
-        for t in hits:
-            if t in tset:
-                result[t] = term
-    return result
+        start = route.get("starts_with")
+        skip_list = route.get("skip")
+        is_fast = isinstance(skip_list, list) and bool(skip_list)
+        for t in filter_hits(times, f):
+            if t not in tset:
+                continue
+            if is_fast:
+                if station in skip_list:
+                    exclude.add(t)   # 被跳站：快车经过不停，排除
+                    continue
+                fast_map[t] = plan   # 停靠站：标记快车
+            if start:
+                start_map[t] = start
+            if term:
+                term_map[t] = term
+    return term_map, start_map, fast_map, sorted(exclude)
+
+
+def invert_map(m):
+    """{时刻: 属性} → {属性: [时刻...]}（时刻排序）"""
+    out = {}
+    for t, v in (m or {}).items():
+        out.setdefault(v, []).append(t)
+    for v in out:
+        out[v].sort()
+    return out
 
 
 def line_color(d):
@@ -274,6 +303,7 @@ def build_index():
     files = [f for f in os.listdir(BEI_DIR) if f.endswith(".json5") and f not in SKIP_FILES]
     lines = {}      # 线路名 -> 颜色
     stations = {}   # 站名 -> [{l,d,t,g,dow}, ...]
+    fast_skip = {}  # {线路|方向|快车名: [跳过站列表]} 供前端展示快车跳站
     for f in sorted(files):
         try:
             import json5
@@ -286,6 +316,14 @@ def build_index():
         sn = [clean_name(s) for s in (d.get("station_names") or [s.get("name") for s in (d.get("stations") or [])])]
         dg = d.get("date_groups", {})
         tr = d.get("train_routes", {})
+        # 收集快车跳站列表（全局）
+        if isinstance(tr, dict):
+            for direction, routings in tr.items():
+                if not isinstance(routings, dict):
+                    continue
+                for rname, r in routings.items():
+                    if isinstance(r, dict) and r.get("skip"):
+                        fast_skip["%s|%s|%s" % (name, direction, rname)] = r["skip"]
         # timetable key 也归一化（合并同名换乘站）
         tt = {}
         for k, v in (d.get("timetable") or {}).items():
@@ -299,7 +337,10 @@ def build_index():
                 routes = tr.get(direction) if isinstance(tr, dict) else None
                 group_times = {}   # 展开结果（用于去重 key 和 dow 判断）
                 group_raw = {}     # 原始 delta schedule（存储用，压缩体积）
-                group_term = {}    # {gname: {时刻: 终点站}} 区间车标记
+                group_term = {}    # {gname: {时刻: 终点站}} 区间车
+                group_start = {}   # {gname: {时刻: 始发站}} 始发车
+                group_fast = {}    # {gname: {时刻: 快车名}} 快车
+                group_excl = {}    # {gname: [排除时刻]} 被跳站快车经过时刻
                 for gname, gd in groups.items():
                     if not isinstance(gd, dict):
                         continue
@@ -307,12 +348,17 @@ def build_index():
                     if arr:
                         group_times[gname] = arr
                         group_raw[gname] = gd.get("schedule")
-                        group_term[gname] = apply_filters(arr, gd.get("filters"), routes)
+                        tm, sm, fm, ex = apply_filters(arr, gd.get("filters"), routes, st)
+                        group_term[gname] = tm
+                        group_start[gname] = sm
+                        group_fast[gname] = fm
+                        group_excl[gname] = ex
                 if not group_times:
                     continue
                 # 去重时刻数组 -> g 列表（gl 为对应日期组名标签）
                 gnames = list(groups.keys())
-                uniq, idx_map, gl, xt = [], {}, [], []
+                uniq, idx_map, gl = [], {}, []
+                xt, xs, xf, xr = [], [], [], []
                 for gname in gnames:
                     key = tuple(group_times.get(gname, ()))
                     if not key:
@@ -321,13 +367,13 @@ def build_index():
                         idx_map[key] = len(uniq)
                         uniq.append(group_raw[gname])   # 存 delta（前端加载后展开）
                         gl.append(gname)
-                        # 该组区间车：{终点站: [时刻...]}（无区间车时 None）
-                        grp_xt = {}
-                        for t, term in (group_term.get(gname) or {}).items():
-                            grp_xt.setdefault(term, []).append(t)
-                        for term in grp_xt:
-                            grp_xt[term].sort()
+                        grp_xt = invert_map(group_term.get(gname))
+                        grp_xs = invert_map(group_start.get(gname))
+                        grp_xf = invert_map(group_fast.get(gname))
                         xt.append(grp_xt if grp_xt else None)
+                        xs.append(grp_xs if grp_xs else None)
+                        xf.append(grp_xf if grp_xf else None)
+                        xr.append(group_excl.get(gname) or None)
                 if not uniq:
                     continue
                 # dow: 周一(1)..周日(7) 各指向 g 索引
@@ -345,13 +391,19 @@ def build_index():
                 rec = {"l": name, "d": direction, "t": terminal, "n": nxt, "g": uniq, "gl": gl, "dow": dow}
                 if any(x is not None for x in xt):
                     rec["xt"] = xt
+                if any(x is not None for x in xs):
+                    rec["xs"] = xs
+                if any(x is not None for x in xf):
+                    rec["xf"] = xf
+                if any(x is not None for x in xr):
+                    rec["xr"] = xr
                 recs = stations.setdefault(st, [])
                 recs.append(rec)
     # 线路按号排序
     ordered_lines = {}
     for ln in sorted(lines.keys(), key=line_sort_key):
         ordered_lines[ln] = lines[ln]
-    return ordered_lines, stations
+    return ordered_lines, stations, fast_skip
 
 
 def get_bj_commit():
@@ -385,8 +437,8 @@ def build():
     bj_sha, bj_date = get_bj_commit()
     log("北京数据最近提交: %s (%s)" % (bj_sha[:12] if bj_sha else "-", bj_date or "-"))
 
-    lines, stations = build_index()
-    log("解析完成: %d 条线路, %d 个站点" % (len(lines), len(stations)))
+    lines, stations, fast_skip = build_index()
+    log("解析完成: %d 条线路, %d 个站点, %d 个快车交路" % (len(lines), len(stations), len(fast_skip)))
 
     # 全量数据校验（时刻非空/递增、班次数、站名、颜色、重复方向）
     validate(stations, lines)
@@ -400,7 +452,7 @@ def build():
     log("拼音索引覆盖 %d/%d 站" % (len(initial), len(stations)))
 
     meta = {
-        "version": "3.0",
+        "version": "3.1",
         "fmt": 2,
         "updated": bj_date or (date.split(" ")[0] if date else ""),
         "commitSha": sha,
@@ -409,6 +461,7 @@ def build():
         "stations": len(stations),
         "source": "Beijing-Subway-Tools (MIT)",
         "lineAliases": LINE_ALIASES,
+        "fastSkip": fast_skip,
     }
 
     payload = {"meta": meta, "lines": lines, "stations": stations, "initial": initial}
