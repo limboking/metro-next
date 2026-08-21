@@ -128,6 +128,7 @@ body{
 }
 .fav-cd .k{font-size:11px;color:var(--ink-3);letter-spacing:.08em;}
 .fav-cd .v{font-size:23px;font-weight:800;color:var(--primary);margin-top:3px;line-height:1.1;font-variant-numeric:tabular-nums;white-space:nowrap;}
+.fav-cd .v .unit{font-size:12px;font-weight:600;color:var(--ink-2);margin:0 1px;letter-spacing:0;font-variant-numeric:normal;}
 .fav-cd .nd{font-size:10px;color:#7B61FF;font-weight:600;margin-top:3px;}
 .fav-cd.off .v{color:var(--ink-3);font-size:15px;font-weight:600;}
 .fav-hint{font-size:11.5px;color:var(--ink-3);text-align:center;margin-top:14px;letter-spacing:.02em;}
@@ -260,6 +261,7 @@ body{
 .at-chip.cur i.term{color:#dce4f5;}
 .cd-term{font-size:13px;color:#C2410C;font-weight:600;margin-top:6px;display:flex;flex-wrap:wrap;gap:5px;justify-content:center;}
 .cd-term .mk{background:#FFF1E6;color:#C2410C;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600;}
+.cd-term .mk.ended{background:#F0F2F6;color:var(--ink-3);}
 .next-row .tag.mk{background:#FFF1E6;color:#C2410C;margin-left:4px;}
 .first-last{display:flex;gap:9px;margin-top:13px;}
 .fl-item{flex:1;background:var(--surface-2);border-radius:12px;padding:9px 10px;text-align:center;}
@@ -831,12 +833,11 @@ function nextDateOf(absMin){
 }
 function calcNext(times, base){
   for (var i=0;i<times.length;i++) if (times[i]>base) return {abs:times[i],waitSec:times[i]-base,idx:i};
+  /* 末班已过：返回次日首班（idx=-1 标记），供渲染"末班已过·距次日首班"+保留班次列表 */
+  if (times.length && base >= times[times.length-1]){
+    return {abs:times[0]+1440, waitSec:times[0]+1440-base, idx:-1, last:times[times.length-1]};
+  }
   return null;
-}
-function calcFirstGap(times, base){
-  var f=times[0]; if (f==null) return null;
-  var fa = base>=1440 ? f+1440 : f;
-  return fa>base ? fa-base : null;
 }
 function curGi(rec){
   /* 新数据格式：rec.g = [时刻数组...]（去重后的日期组），rec.dow = 7字符（周一~周日各指 g 的索引）
@@ -1199,9 +1200,11 @@ function tickFavNext(){
     }
     var rec = info.rec, n = info.n, hm = fmtHMNextDay(n.abs);
     var gi = curGi(rec);
-    var term = termOf(rec, gi, n.abs);
-    var fast = fastOf(rec, gi, n.abs);
-    var start = startOf(rec, gi, n.abs);
+    /* 末班已过（idx<0）时 n.abs = 次日首班（+1440），标记需查原始时刻 */
+    var mt = (n.idx < 0) ? (n.abs - 1440) : n.abs;
+    var term = termOf(rec, gi, mt);
+    var fast = fastOf(rec, gi, mt);
+    var start = startOf(rec, gi, mt);
     var isPartial = term && term !== rec.t;
     var extra = [];   // 快车/始发标记（区间终点在 fc 正文里体现）
     if (fast){
@@ -1211,7 +1214,13 @@ function tickFavNext(){
     if (start) extra.push(start+"始发");
     var diff = Math.max(0, nextDateOf(n.abs) - new Date());
     var totalSec = Math.floor(diff/1000), mm = Math.floor(totalSec/60), ss = totalSec%60;
-    var waitTxt = mm>0 ? mm+"分"+pad2(ss)+"秒" : ss+"秒";
+    var waitTxt;
+    if (mm >= 60){
+      var hh = Math.floor(mm/60), rm = mm%60;
+      waitTxt = hh+'<span class="unit">小时</span>'+(rm>0?rm+'<span class="unit">分</span>':"");
+    } else {
+      waitTxt = mm>0 ? mm+'<span class="unit">分</span>'+pad2(ss)+'<span class="unit">秒</span>' : ss+'<span class="unit">秒</span>';
+    }
     el.className = "fav-cd";
     el.innerHTML = '<span class="k">下一班</span><span class="v">'+waitTxt+'</span>'+(hm.nd?'<span class="nd">次日 '+hm.t+'</span>':"");
     if (tEl) tEl.textContent = hm.t;
@@ -1351,34 +1360,45 @@ function renderDirBody(){
     var cd = $("cd-"+i), cds = $("cdst-"+i), cdt = $("cdt-"+i);
     if (next){
       var diff = Math.max(0, nextDateOf(next.abs) - new Date());
-      var totalSec = Math.floor(diff/1000), mm = Math.floor(totalSec/60), ss = totalSec%60;
-      cd.innerHTML = mm>0
-        ? mm+'<span class="unit">分</span>'+ss+'<span class="unit">秒</span>'
-        : ss+'<span class="unit">秒</span>';
-      cds.style.display="none";
-      // 下一班若是区间车/快车/始发车，显示标记
-      var marks = marksOf(rec, gi, next.abs);
-      if (marks.length){
+      var totalSec = Math.floor(diff/1000), totalMin = Math.floor(totalSec/60), ss = totalSec%60;
+      if (next.idx < 0){
+        /* 末班已过：倒计时显示"X 小时 Y 分"（>60分时），cdt 显示末班已过标记，
+           并渲染末班附近班次 + 展开全部按钮（用户可查看完整时刻表） */
+        var hh = Math.floor(totalMin/60), mm = totalMin%60;
+        cd.innerHTML = hh > 0
+          ? hh+'<span class="unit">小时</span>'+(mm>0?mm+'<span class="unit">分</span>':"")
+          : (mm>0?mm+'<span class="unit">分</span>':'即将');
+        cds.style.display="none";
+        var lastHm = fmtHMNextDay(next.last);
         cdt.style.display="block";
-        cdt.innerHTML = marks.map(function(m){ return '<span class="mk">'+esc(m)+'</span>'; }).join(' · ');
+        cdt.innerHTML = '<span class="mk ended">末班 '+esc(lastHm.t)+(lastHm.nd?'次日':'')+' 已过</span>';
+        if (lastNextIdx[i] === undefined || lastNextIdx[i]!==next.idx){
+          renderNextListEnded(rec, times, i, lastHm);
+          lastNextIdx[i] = next.idx;
+        }
       } else {
-        cdt.style.display="none";
-      }
-      if (!lastNextIdx[i] || lastNextIdx[i]!==next.idx){
-        renderNextList(rec, times, next, i);
-        lastNextIdx[i] = next.idx;
+        cd.innerHTML = totalMin>0
+          ? totalMin+'<span class="unit">分</span>'+ss+'<span class="unit">秒</span>'
+          : ss+'<span class="unit">秒</span>';
+        cds.style.display="none";
+        var marks = marksOf(rec, gi, next.abs);
+        if (marks.length){
+          cdt.style.display="block";
+          cdt.innerHTML = marks.map(function(m){ return '<span class="mk">'+esc(m)+'</span>'; }).join(' · ');
+        } else {
+          cdt.style.display="none";
+        }
+        if (lastNextIdx[i] === undefined || lastNextIdx[i]!==next.idx){
+          renderNextList(rec, times, next, i);
+          lastNextIdx[i] = next.idx;
+        }
       }
     } else {
       cd.innerHTML = "—";
       cdt.style.display="none";
-      var gap = calcFirstGap(times, base);
-      if (gap!=null){
-        cds.style.display="block"; cds.className="status warn";
-        cds.textContent = "今日班次已结束 · 距首班还有 "+Math.floor(gap/60)+" 分钟";
-      } else {
-        cds.style.display="block"; cds.className="status";
-        cds.textContent = "今日运营已结束";
-      }
+      cds.style.display="block";
+      cds.className="status";
+      cds.textContent = "今日运营已结束";
       if (lastNextIdx[i]!==undefined){ $("nl-"+i).innerHTML=""; lastNextIdx[i]=undefined; }
     }
   }
@@ -1419,6 +1439,30 @@ function renderNextList(rec, times, next, i){
       var na = (gIdx===gi) ? next.abs : null;   // 仅当前生效组高亮下一班
       html += '<div class="all-block"><div class="all-title">'+esc(label)+'班次 · '+arr.length+' 班</div>'
         + '<div class="all-grid">'+allTimesHTML(arr, na, rec, gIdx)+'</div></div>';
+    }
+  }
+  box.innerHTML = html;
+}
+/* 末班已过：显示末班附近 5 班（高亮末班）+ 展开全部按钮（让用户可查看完整时刻表） */
+function renderNextListEnded(rec, times, i, lastHm){
+  var box = $("nl-"+i);
+  var html = '<div class="nl-title">末班附近班次</div>';
+  var start = Math.max(0, times.length - 5);
+  for (var j=start; j<times.length; j++){
+    var hm = fmtHMNextDay(times[j]);
+    var isCur = j === times.length-1;
+    var tag = isCur ? '<span class="tag">末班</span>' : (hm.nd ? '<span class="tag next-day">次日</span>' : '');
+    html += '<div class="next-row'+(isCur?" cur":"")+'"><span class="t num">'+hm.t+'</span>'+tag+'</div>';
+  }
+  var isExp = !!expandedAll[i];
+  html += '<button class="show-all'+(isExp?" open":"")+'" data-i="'+i+'">'+(isExp?"收起":"展开")+'全部班次<span class="chev">▾</span></button>';
+  if (isExp){
+    var gl = rec.gl || [];
+    for (var gIdx=0; gIdx<(rec.g||[]).length; gIdx++){
+      var arr = rec.g[gIdx];
+      var label = gl[gIdx] || ("班次 "+(gIdx+1));
+      html += '<div class="all-block"><div class="all-title">'+esc(label)+'班次 · '+arr.length+' 班</div>'
+        + '<div class="all-grid">'+allTimesHTML(arr, null, rec, gIdx)+'</div></div>';
     }
   }
   box.innerHTML = html;
@@ -1568,7 +1612,10 @@ function init(){
       var rec = renderRecs[idx], times = rec ? dirTimes(rec) : [];
       var base = nowMin(); if (base<270) base += 1440;
       var n = calcNext(times, base);
-      if (n) renderNextList(rec, times, n, idx);
+      if (n){
+        if (n.idx < 0) renderNextListEnded(rec, times, idx, fmtHMNextDay(n.last));
+        else renderNextList(rec, times, n, idx);
+      }
       if (expandedAll[idx]) scrollToHighlight(idx);
       return;
     }
