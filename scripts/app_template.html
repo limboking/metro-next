@@ -116,6 +116,41 @@ body{
 .fav-card .station-name{font-size:17px;font-weight:700;display:flex;align-items:center;gap:7px;}
 .fav-card.pressing{background:#FDEEEE;}
 .fav-card.pressing .station-name{color:var(--danger);}
+/* ===== 收藏编辑态（长按进入：拖动排序 + 点 X 删除）===== */
+/* 禁止长按选中文字 / 长按系统菜单（否则会中断手势） */
+.fav-card{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;}
+@keyframes favJiggle{
+  0%{transform:rotate(-.55deg)}
+  25%{transform:rotate(.5deg) translateY(-1px)}
+  50%{transform:rotate(-.45deg)}
+  75%{transform:rotate(.55deg) translateY(1px)}
+  100%{transform:rotate(-.55deg)}
+}
+/* 编辑态：卡片轻微抖动（逐张错开，模拟桌面图标），并露出 X 按钮 */
+/* 编辑态下锁定 touch-action：touch-action 只在手势开始时生效，
+   若等到长按后再加就晚了（浏览器已判定为滚动并会 pointercancel 中断拖拽）。
+   进入编辑态即锁定，之后的每次长按拖拽都从手势起点生效。 */
+.fav-list.editing .fav-card{overflow:visible;cursor:grab;touch-action:none;animation:favJiggle .34s var(--ease) infinite;}
+.fav-card.dragging{
+  animation:none !important;transform:scale(1.035);opacity:.97;z-index:5;cursor:grabbing;
+  box-shadow:0 12px 30px rgba(22,26,36,.20),0 2px 8px rgba(22,26,36,.10);
+  touch-action:none;   /* 拖拽时禁止页面滚动 */
+  /* 关键：基础样式带有 transition:transform .15s，若不关掉，每次 pointermove 都会被 150ms 过渡追着跑，
+     手感发飘；换位时的基准点补偿更会「先跳后追」，表现为拖动过程跳一下。 */
+  transition:none !important;
+}
+/* 拖拽进行中：暂停所有卡片的抖动动画。
+   一是避免其余卡片的 transform 干扰 getBoundingClientRect 的位置判定，
+   二是让 FLIP 换位动画可用（animation 会覆盖内联 transform）。 */
+.fav-list.dragging-active .fav-card{animation:none !important;}
+.fav-card .fav-del{
+  position:absolute;top:-7px;right:-7px;width:23px;height:23px;border-radius:50%;
+  background:var(--danger);color:#fff;font-size:14px;line-height:23px;text-align:center;
+  font-weight:700;box-shadow:0 2px 8px rgba(229,72,77,.40);display:none;z-index:6;
+}
+.fav-list.editing .fav-card .fav-del{display:block;animation:starPop .3s var(--ease) both;}
+.fav-done{display:none;margin-left:auto;font-size:13px;font-weight:700;color:var(--primary);background:none;border:none;padding:0;cursor:pointer;}
+.fav-done.show{display:inline-block;}
 .fav-lines{display:flex;gap:4px;margin-top:6px;align-items:center;}
 .fav-line{width:9px;height:9px;border-radius:3px;}
 .fav-time{display:flex;align-items:baseline;gap:7px;margin-top:8px;min-width:0;}
@@ -339,9 +374,9 @@ body{
       </div>
     </div>
     <div class="home-body">
-      <div class="sec-head"><span class="t">我的站点</span><button class="clr-all" id="btnClearAll" style="display:none;">清空全部</button></div>
+      <div class="sec-head"><span class="t">我的站点</span><button class="fav-done" id="btnFavDone">完成</button><button class="clr-all" id="btnClearAll" style="display:none;">清空全部</button></div>
       <div class="fav-list" id="favList"></div>
-      <div class="fav-hint" id="favHint" style="display:none;">长按收藏卡片可删除</div>
+      <div class="fav-hint" id="favHint" style="display:none;">长按卡片可拖动排序或删除</div>
       <div class="empty-tip" id="favEmpty" style="display:none;">
         <span class="glyph">🚇</span>
         还没有收藏站点<br>点下方按钮，选个常坐的站吧
@@ -466,7 +501,7 @@ function loadBestData(){
   return builtin;
 }
 var DATA = loadBestData();
-var LINES = DATA.lines || {}, STATIONS = DATA.stations || {}, INITIAL = DATA.initial || {}, META = DATA.meta || {};
+var LINES = DATA.lines || {}, STATIONS = DATA.stations || {}, INITIAL = DATA.initial || {}, META = DATA.meta || {}, LINE_ORDER = DATA.lineOrder || {};
 
 /* ================= 状态 ================= */
 var favs = {};
@@ -929,6 +964,12 @@ function toast(msg){
 var pendingAction = null;    // {type:'one', key} 或 {type:'all'}
 var pressTimer = null, pressKey = null, pressFired = false;   // 长按状态（全局，便于弹层复位）
 var sheetMode = "del";       // del=删除确认 | update=检查更新确认 | info=信息提示
+var editMode = false;        // 收藏编辑态（长按进入：可拖动排序、点 X 删除）
+var drag = null;             // 拖拽状态 {card, id, startY, moved}
+var lastPointerId = null;    // 最近一次 pointerdown 的 id，用于长按后接管指针
+var lastY = 0;               // 最近一次 pointer 的 clientY（长按触发时作为拖拽起点）
+var editPushed = false;      // 进入编辑态时是否压入过历史记录（供安卓系统返回手势/返回键退出）
+var editSuppressPop = false; // 退出编辑态时主动 history.back() 引发的 popstate 不再切换视图
 function openSheet(title, sub, delText, mode){
   sheetMode = mode || "del";
   $("sheetTitle").textContent = title;
@@ -1131,11 +1172,11 @@ function autoCheckUpdate(){
 function renderHome(){
   var list = $("favList"), empty = $("favEmpty");
   var keys = Object.keys(favs);
-  if (!keys.length){ list.innerHTML=""; empty.style.display="block"; $("favHint").style.display="none"; }
+  if (!keys.length){ editMode = false; list.innerHTML=""; empty.style.display="block"; $("favHint").style.display="none"; }
   else { empty.style.display="none"; $("favHint").style.display="block"; }
   $("homeFavCnt").textContent = keys.length;
   $("btnClearAll").style.display = keys.length ? "block" : "none";
-  keys.sort(function(a,b){ return favs[b]-favs[a]; });
+  keys = sortFavKeys(keys);
   var html = "";
   for (var i=0;i<keys.length;i++){
     var k = keys[i], delay = "animation-delay:"+(i*40)+"ms;";
@@ -1146,6 +1187,7 @@ function renderHome(){
       var dirDesc = (rec && rec.t) ? "开往"+rec.t : pk.d;
       html += '<div class="fav-card" data-key="'+esc(k)+'" data-dir="1" style="'+delay+'">'
         + '<span class="accent" style="background:'+c+'"></span>'
+        + '<span class="fav-del" data-del="'+esc(k)+'">×</span>'
         + '<div class="body"><div class="station-name">'+esc(pk.st)+'</div>'
         + '<div class="fav-lines"><span class="fav-line" style="background:'+c+';width:10px;height:10px;border-radius:3px;"></span>'
         + '<span style="font-size:12.5px;color:var(--ink-3);margin-left:4px;">'+esc(pk.l)+' · '+esc(dirDesc)+'</span></div>'
@@ -1159,6 +1201,7 @@ function renderHome(){
       }
       html += '<div class="fav-card" data-key="'+esc(st)+'" style="'+delay+'">'
         + '<span class="accent" style="background:'+((recs2[0]&&LINES[recs2[0].l])||"#9AA1AF")+'"></span>'
+        + '<span class="fav-del" data-del="'+esc(st)+'">×</span>'
         + '<div class="body"><div class="station-name">'+esc(st)+'</div>'
         + '<div class="fav-lines">'+dots+'</div>'
         + '<div class="fav-time"><span class="t">--:--</span><span class="fc"></span></div></div>'
@@ -1166,6 +1209,7 @@ function renderHome(){
     }
   }
   list.innerHTML = html;
+  syncEditUI();
   tickFavNext();
 }
 
@@ -1284,7 +1328,22 @@ function renderPicker(kw){
       var recs = STATIONS[st];
       for (var r=0;r<recs.length;r++) if (recs[r].l===ln){ names.push(st); break; }
     }
-    names.sort();
+    // 按线路内真实站序排序（数据侧已用官方线路图坐标定向：东西走向自西向东，南北走向保持官方顺序）
+    // 不在顺序表中的站点（数据差异）排到末尾，并按站名兜底排序
+    var order = LINE_ORDER[ln];
+    if (order && order.length){
+      var idxOf = {};
+      for (var oi=0; oi<order.length; oi++) idxOf[order[oi]] = oi;
+      names.sort(function(a,b){
+        var ia = idxOf[a], ib = idxOf[b];
+        if (ia === undefined && ib === undefined) return a < b ? -1 : (a > b ? 1 : 0);
+        if (ia === undefined) return 1;
+        if (ib === undefined) return -1;
+        return ia - ib;
+      });
+    } else {
+      names.sort();
+    }
     var chips = "";
     for (var k2=0;k2<names.length;k2++){
       if (!match(names[k2])) continue;
@@ -1477,10 +1536,50 @@ function renderFL(rec, i){
 
 /* ================= 收藏 ================= */
 function saveFavs(){ try{ localStorage.setItem("bjmetro_favs", JSON.stringify(favs)); }catch(e){} }
+
+/* ================= 收藏自定义顺序（拖动排序持久化） ================= */
+var FAV_ORDER_KEY = "bjmetro_fav_order";
+var favOrder = null;   // null = 尚未自定义过顺序，沿用「按收藏时间倒序」
+function loadFavOrder(){
+  try {
+    var a = JSON.parse(localStorage.getItem(FAV_ORDER_KEY) || "null");
+    favOrder = (a && a.length) ? a : null;
+  } catch(e){ favOrder = null; }
+}
+function saveFavOrder(){
+  try { localStorage.setItem(FAV_ORDER_KEY, JSON.stringify(favOrder || [])); } catch(e){}
+}
+/* 按自定义顺序排；不在顺序表里的键（新收藏/老数据）按收藏时间倒序置顶 */
+function sortFavKeys(keys){
+  if (!favOrder) return keys.slice().sort(function(a,b){ return favs[b]-favs[a]; });
+  var idx = {}, i;
+  for (i=0;i<favOrder.length;i++) idx[favOrder[i]] = i;
+  var inList = [], outList = [];
+  for (i=0;i<keys.length;i++){
+    if (idx[keys[i]] !== undefined) inList.push(keys[i]);
+    else outList.push(keys[i]);
+  }
+  inList.sort(function(a,b){ return idx[a]-idx[b]; });
+  outList.sort(function(a,b){ return favs[b]-favs[a]; });
+  return outList.concat(inList);
+}
+/* 同步编辑态的视觉（列表抖动类 + 完成按钮显隐） */
+function syncEditUI(){
+  var list = $("favList");
+  if (!list) return;
+  list.classList.toggle("editing", !!editMode);
+  var done = $("btnFavDone");
+  if (done) done.classList.toggle("show", !!editMode);
+}
+
 function toggleFav(k){
   if (favs[k]) delete favs[k];
   else favs[k] = Date.now();
   saveFavs();
+  if (favOrder){                                  // 删除时同步清理顺序表
+    var fi = favOrder.indexOf(k);
+    if (fi >= 0){ favOrder.splice(fi, 1); saveFavOrder(); }
+  }
   renderHome();
   if (curStation===k){
     var star=$("stStar"); star.textContent = favs[k]?"★":"☆"; star.classList.toggle("on", !!favs[k]);
@@ -1509,6 +1608,7 @@ function migrateFavs(){
 
 function init(){
   migrateFavs();
+  loadFavOrder();
   buildPickerIndex();
   renderHome();
   tickHome();
@@ -1519,7 +1619,13 @@ function init(){
   $("btnBackStation").addEventListener("click", function(){ history.back(); });
 
   // 手机返回键/手势返回：恢复到上一级视图
-  window.addEventListener("popstate", function(e){ onPopState(e.state || {v:"home"}); });
+  window.addEventListener("popstate", function(e){
+    // 退出编辑态时我们会主动 history.back()，那次 popstate 不应再切换视图
+    if (editSuppressPop){ editSuppressPop = false; return; }
+    // 编辑态下按系统返回手势/返回键：先退出编辑态，不切换视图、不退出应用
+    if (editMode){ onEditBack(); return; }
+    onPopState(e.state || {v:"home"});
+  });
 
   // 搜索
   $("searchInput").addEventListener("input", function(){
@@ -1556,34 +1662,196 @@ function init(){
     navTo("view-station", {v:"station", s:curStation});
   });
 
-  // 收藏列表：点击进入；长按删除
+  // 收藏列表：点击进入；长按进入编辑态（可拖动排序、点 X 删除）
   var list = $("favList");
   function clearPress(){ clearTimeout(pressTimer); pressTimer = null; pressKey = null; }
+
+  function currentDomOrder(){
+    var nodes = list.querySelectorAll(".fav-card"), arr = [];
+    for (var i=0;i<nodes.length;i++) arr.push(nodes[i].getAttribute("data-key"));
+    return arr;
+  }
+  /* 把当前 DOM 顺序固化为自定义顺序（顺带剔除已删除的键） */
+  function commitOrder(){
+    favOrder = currentDomOrder().filter(function(k){ return favs[k] !== undefined; });
+    saveFavOrder();
+  }
+  function enterEdit(){
+    if (editMode) return;
+    editMode = true;
+    // 压入一条历史记录：安卓系统返回手势/返回键会触发 history.back()，
+    // 从而在 popstate 里先退出编辑态，而不是直接退出应用或跳走
+    try {
+      history.pushState({v:"home", edit:1}, "", location.href);
+      editPushed = true;
+    } catch(e){ editPushed = false; }
+    syncEditUI();
+  }
+  function exitEdit(){
+    if (!editMode) return;
+    editMode = false;
+    syncEditUI();
+    if (editPushed){                  // 清掉进入编辑态时压入的历史记录，保持返回栈整洁
+      editPushed = false;
+      editSuppressPop = true;
+      try { history.back(); } catch(e){ editSuppressPop = false; }
+    }
+  }
+  /* 系统返回（手势/返回键）触发的 popstate：处于编辑态时优先退出编辑态 */
+  function onEditBack(){
+    editMode = false;
+    editPushed = false;
+    syncEditUI();
+  }
+  /* 长按后"拿起"卡片：接管指针，后续 pointermove 即拖动 */
+  function startDrag(card){
+    drag = { card: card, id: lastPointerId, startY: lastY, moved: false };
+    card.classList.add("dragging");
+    list.classList.add("dragging-active");   // 暂停抖动动画，启用 FLIP 换位动画
+    try { list.setPointerCapture(drag.id); } catch(err){}
+  }
+  function endDrag(){
+    if (!drag) return;
+    var d = drag;
+    drag = null;
+    d.card.style.transform = "";
+    d.card.classList.remove("dragging");
+    list.classList.remove("dragging-active");
+    try { list.releasePointerCapture(d.id); } catch(err){}
+    if (d.moved) commitOrder();
+  }
+  /* FLIP 换位：先记录其余卡片位置，换位后把它们反向偏移回原位，再过渡归零，
+     使相邻卡片是"滑动让位"而不是瞬间跳位。 */
+  function flipSwap(refNode){
+    var nodes = list.querySelectorAll(".fav-card"), items = [], i;
+    for (i=0;i<nodes.length;i++){
+      if (nodes[i] === drag.card) continue;
+      items.push({ el: nodes[i], top: nodes[i].getBoundingClientRect().top });
+    }
+    var beforeTop = drag.card.offsetTop;
+    list.insertBefore(drag.card, refNode);
+    drag.startY += (drag.card.offsetTop - beforeTop);   // 修正基准点，保证跟手不跳
+    for (i=0;i<items.length;i++){
+      var it = items[i], now = it.el.getBoundingClientRect().top, delta = it.top - now;
+      if (!delta) continue;
+      it.el.style.transition = "none";
+      it.el.style.transform = "translateY(" + delta + "px)";
+      void it.el.offsetWidth;                            // 强制回流，确保起点生效
+      it.el.style.transition = "transform .18s var(--ease)";
+      it.el.style.transform = "";
+      // 动画结束后清掉内联 transition，恢复基础样式（否则会一直覆盖 box-shadow 的过渡）
+      setTimeout(function(el){ return function(){ el.style.transition = ""; }; }(it.el), 220);
+    }
+  }
+
   list.addEventListener("pointerdown", function(e){
     var card = e.target.closest(".fav-card");
     if (!card || e.button > 0) return;
+    if (e.target.closest(".fav-del")) return;      // X 按钮不触发长按/拖拽
     var k = card.getAttribute("data-key");
     clearPress();
+    lastPointerId = e.pointerId;
+    lastY = e.clientY;
+
+    if (editMode){
+      // 已在编辑态：按住即可拖动（桌面图标手感），无需再次长按 520ms
+      pressFired = true;            // 抑制随后的 click，避免误跳转
+      navigator.vibrate && navigator.vibrate(15);
+      startDrag(card);
+      return;
+    }
+
     pressKey = k;
     pressFired = false;
     pressTimer = setTimeout(function(){
       pressFired = true;
-      card.classList.add("pressing");
-      pendingAction = {type:"one", key:k};
-      var label = isDirKey(k) ? (function(){ var p=splitDirKey(k); return p.st+" · "+p.l+" · "+(p.d); })() : k;
-      openSheet("删除收藏？", "「"+label+"」将从收藏中移除", "删除收藏");
+      enterEdit();
       navigator.vibrate && navigator.vibrate(30);
+      startDrag(card);
     }, 520);
   });
-  list.addEventListener("pointerup", function(){ clearPress(); });
-  list.addEventListener("pointercancel", function(){ clearPress(); });
-  list.addEventListener("pointermove", function(){ clearPress(); });
-  list.addEventListener("pointerleave", function(){ clearPress(); });
+
+  /* 拖动位移与换位（clientY 为视口坐标），鼠标与触摸共用 */
+  function onDragMove(clientY){
+    if (!drag) return;
+    var dy = clientY - drag.startY;
+    drag.moved = true;
+    drag.card.style.transform = "translateY(" + dy + "px) scale(1.035)";
+
+    // 越过相邻卡片中线即交换位置；交换后修正基准点，保证卡片跟手不跳
+    var sibs = [], nodes = list.querySelectorAll(".fav-card"), i;
+    for (i=0;i<nodes.length;i++) sibs.push(nodes[i]);
+    var idx = sibs.indexOf(drag.card);
+    var box = drag.card.getBoundingClientRect();
+    var center = box.top + box.height / 2;
+    for (i=0;i<sibs.length;i++){
+      if (i === idx) continue;
+      var s = sibs[i], r = s.getBoundingClientRect(), sc = r.top + r.height / 2;
+      var swapped = (dy < 0 && i < idx && center < sc) || (dy > 0 && i > idx && center > sc);
+      if (swapped){
+        flipSwap(i < idx ? s : s.nextSibling);
+        drag.card.style.transform = "translateY(" + (clientY - drag.startY) + "px) scale(1.035)";
+        break;
+      }
+    }
+
+    // 靠近屏幕上下边缘自动滚动，便于拖到长列表尽头
+    var vh = window.innerHeight || document.documentElement.clientHeight;
+    if (clientY < 90) window.scrollBy(0, -12);
+    else if (clientY > vh - 90) window.scrollBy(0, 12);
+  }
+
+  // 鼠标 / 触控笔：用 pointermove
+  list.addEventListener("pointermove", function(e){
+    if (!drag){ clearPress(); return; }            // 未进入拖拽时，移动视为滚动 → 取消长按
+    if (e.pointerId !== drag.id) return;
+    if (e.pointerType === "touch") return;         // 触摸交给 touchmove 处理（见下）
+    e.preventDefault();
+    onDragMove(e.clientY);
+  }, { passive:false });
+
+  // 触摸：必须在 touchmove 阶段 preventDefault。
+  // 关键坑：pointermove 里调 preventDefault() 无法阻止页面滚动；浏览器一旦把手势判定为滚动，
+  // 就会发出 pointercancel，而 pointercancel 会结束拖拽 —— 表现为「能进编辑态但拖不动」。
+  list.addEventListener("touchmove", function(e){
+    if (!drag) return;
+    e.preventDefault();
+    var t = e.touches && e.touches[0];
+    if (t) onDragMove(t.clientY);
+  }, { passive:false });
+
+  list.addEventListener("pointerup", function(e){
+    clearPress();
+    if (drag && e.pointerId === drag.id) endDrag();
+  });
+  list.addEventListener("touchend", function(){ clearPress(); endDrag(); });
+  list.addEventListener("touchcancel", function(){ clearPress(); endDrag(); });
+  list.addEventListener("pointercancel", function(e){
+    clearPress();
+    // 触摸时的 pointercancel 多由浏览器接管滚动引起，但 touch 事件仍会继续派发，
+    // 因此不在此结束拖拽，交给 touchend / touchcancel 收尾，避免拖拽被过早中断。
+    if (e && e.pointerType && e.pointerType !== "touch") endDrag();
+  });
+  list.addEventListener("pointerleave", function(){ if (!drag) clearPress(); });
+  // 屏蔽长按系统菜单，避免打断编辑态
+  list.addEventListener("contextmenu", function(e){
+    if (editMode || e.target.closest(".fav-card")) e.preventDefault();
+  });
+
   list.addEventListener("click", function(e){
-    if (e.target.closest(".fav-del")) return;
+    var del = e.target.closest(".fav-del");
+    if (del){                                      // 编辑态：点 X 仍走删除确认抽屉
+      e.stopPropagation();
+      var dk = del.getAttribute("data-del");
+      pendingAction = {type:"one", key:dk};
+      var dlabel = isDirKey(dk) ? (function(){ var p=splitDirKey(dk); return p.st+" · "+p.l+" · "+(p.d); })() : dk;
+      openSheet("删除收藏？", "「"+dlabel+"」将从收藏中移除", "删除收藏");
+      return;
+    }
     if (pressFired){ pressFired = false; return; }
     var card = e.target.closest(".fav-card");
     if (!card) return;
+    if (editMode) return;                          // 编辑态下点卡片不跳转
     var k = card.getAttribute("data-key");
     if (isDirKey(k)){
       var pk = splitDirKey(k);
@@ -1595,6 +1863,12 @@ function init(){
     $("searchInput").value = ""; $("searchClear").style.display = "none";
     renderStation();
     navTo("view-station", {v:"station", s:curStation, l:curFilter?curFilter.l:null, d:curFilter?curFilter.d:null});
+  });
+
+  $("btnFavDone").addEventListener("click", function(){
+    if (drag) return;
+    if (!favOrder) commitOrder();                  // 首次进入编辑态即固化当前顺序
+    exitEdit();
   });
 
   // 详情：方向收藏 / 展开全部

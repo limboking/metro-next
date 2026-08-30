@@ -17,3 +17,19 @@ deploy/
 # 系统
 .DS_Store
 Thumbs.db
+
+# ── 安卓工程 ────────────────────────────────────────────
+# 旧原生工程备份：已被 WebView 方案取代，仅本地留存作参考，不入库
+android_native_backup_20260828/
+
+# 构建产物与缓存（含构建脚本 rename 产生的 *_bak* 残留）
+android/app/build*/
+android/.gradle*/
+android/timetable.json
+
+# App 内嵌网页：由 beijing-metro.html 生成（build_apk.sh 每次构建前自动同步），
+# 不入库，避免仓库里存在两份完全相同的 1.1MB 副本
+android/app/src/main/assets/public/metro.html
+
+# 测试版 APK 不入库；正式版通过 GitHub Release 发布
+*.apk

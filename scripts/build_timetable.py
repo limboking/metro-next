@@ -29,6 +29,7 @@ OUT = os.path.join(BASE, "beijing-metro.html")
 REPO_URL = "https://github.com/Mick235711/Beijing-Subway-Tools.git"
 REPO_DIR = os.path.join(RAW_DIR, "bjst")
 BEI_DIR = os.path.join(REPO_DIR, "data", "beijing")
+MAP_FILE = os.path.join(BEI_DIR, "maps", "official.json5")
 
 # 旧数据源线路名 → 新名（供前端迁移用户已收藏的方向 key）
 LINE_ALIASES = {
@@ -44,6 +45,62 @@ UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.3
 
 def log(msg):
     print("[build]", msg)
+
+
+def norm_map_name(n):
+    """官方线路图中换乘站写作「木樨地（1号线）」，需归一化为基础站名。
+    半角 () 与全角 （） 都要处理，否则会漏掉木樨地、大钟寺等站。"""
+    n = (n or "").strip()
+    for op in ("(", "（"):
+        i = n.find(op)
+        if i > 0:
+            n = n[:i].strip()
+            break
+    return n
+
+
+def first_int_after(s, key):
+    """从 '{x: 3616, y: 4103, r: 36}' 这类片段中取 key 之后的第一个整数。
+    注意：不能用 split("}")[0] 再 int()，换乘站带 r: 半径字段会得到 '4103, r: 36' 而解析失败，
+    导致所有换乘站坐标被静默丢弃。"""
+    i = s.find(key)
+    if i < 0:
+        return None
+    j = i + len(key)
+    while j < len(s) and (not s[j].isdigit()) and s[j] != "-":
+        j += 1
+    start = j
+    if j < len(s) and s[j] == "-":
+        j += 1
+    while j < len(s) and s[j].isdigit():
+        j += 1
+    if j == start:
+        return None
+    return int(s[start:j])
+
+
+def load_map_coords():
+    """读取官方线路图站点坐标 {站名: (x, y)}。
+    已验证 x 轴即自西向东（1号线 苹果园 x=1634 → 环球度假区 x=8104）。"""
+    coords = {}
+    if not os.path.exists(MAP_FILE):
+        log("缺少官方线路图坐标 %s，线路顺序将保持上游原序" % MAP_FILE)
+        return coords
+    txt = open(MAP_FILE, encoding="utf-8").read()
+    for line in txt.splitlines():
+        s = line.strip()
+        if not s.startswith('"'):
+            continue
+        parts = s.split('"')
+        if len(parts) < 2 or not parts[1]:
+            continue
+        x = first_int_after(s, "x:")
+        y = first_int_after(s, "y:")
+        if x is None or y is None:
+            continue
+        coords[norm_map_name(parts[1])] = (x, y)
+    log("官方线路图坐标: %d 站" % len(coords))
+    return coords
 
 
 def sync_repo(force):
@@ -304,6 +361,7 @@ def build_index():
     lines = {}      # 线路名 -> 颜色
     stations = {}   # 站名 -> [{l,d,t,g,dow}, ...]
     fast_skip = {}  # {线路|方向|快车名: [跳过站列表]} 供前端展示快车跳站
+    line_order = {}  # 线路名 -> [站名...]（线路内顺序，稍后定向为自西向东）
     for f in sorted(files):
         try:
             import json5
@@ -314,6 +372,7 @@ def build_index():
         name = d.get("name") or f
         lines[name] = line_color(d)
         sn = [clean_name(s) for s in (d.get("station_names") or [s.get("name") for s in (d.get("stations") or [])])]
+        line_order[name] = sn
         dg = d.get("date_groups", {})
         tr = d.get("train_routes", {})
         # 收集快车跳站列表（全局）
@@ -403,7 +462,39 @@ def build_index():
     ordered_lines = {}
     for ln in sorted(lines.keys(), key=line_sort_key):
         ordered_lines[ln] = lines[ln]
-    return ordered_lines, stations, fast_skip
+
+    # 线路内站点顺序：用官方线路图 x 坐标把整体方向定向为「自西向东」
+    # 站点多时取首尾各 1/3 的平均 x 比较（抗单站异常），站点少时直接比首尾
+    coords = load_map_coords()
+    ordered_line_order = {}
+    reversed_cnt = 0
+    ns_keep_cnt = 0
+    for ln, seq in line_order.items():
+        s = list(seq)
+        pts = [coords[st] for st in s if st in coords] if coords else []
+        if len(pts) >= 2:
+            xs = [p[0] for p in pts]
+            ys = [p[1] for p in pts]
+            xr, yr = max(xs) - min(xs), max(ys) - min(ys)
+            # 仅对「东西走向」的线路做自西向东定向；
+            # 南北走向线路（y 跨度 > x 跨度）保持上游官方顺序，如 4号线 由北到南
+            if xr >= yr:
+                if len(xs) >= 6:
+                    k = max(1, len(xs) // 3)
+                    need_rev = (sum(xs[:k]) / float(k)) > (sum(xs[-k:]) / float(k))
+                else:
+                    need_rev = xs[0] > xs[-1]
+                if need_rev:
+                    s.reverse()
+                    reversed_cnt += 1
+            else:
+                ns_keep_cnt += 1
+        ordered_line_order[ln] = s
+    if coords:
+        log("线路顺序定向: 共 %d 条 | 自西向东反转 %d 条 | 南北向保持官方顺序 %d 条"
+            % (len(ordered_line_order), reversed_cnt, ns_keep_cnt))
+
+    return ordered_lines, stations, fast_skip, ordered_line_order
 
 
 def get_bj_commit():
@@ -437,7 +528,7 @@ def build():
     bj_sha, bj_date = get_bj_commit()
     log("北京数据最近提交: %s (%s)" % (bj_sha[:12] if bj_sha else "-", bj_date or "-"))
 
-    lines, stations, fast_skip = build_index()
+    lines, stations, fast_skip, line_order = build_index()
     log("解析完成: %d 条线路, %d 个站点, %d 个快车交路" % (len(lines), len(stations), len(fast_skip)))
 
     # 全量数据校验（时刻非空/递增、班次数、站名、颜色、重复方向）
@@ -464,23 +555,51 @@ def build():
         "fastSkip": fast_skip,
     }
 
-    payload = {"meta": meta, "lines": lines, "stations": stations, "initial": initial}
-    json_str = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
-    json_str = json_str.replace("<", "\\u003c")
+    # 仅新增字段（如 lineOrder）时用 --pin-meta 锁定版本信息：
+    # 本地解析用的是缓存仓库（内容未变），但 GitHub 上可能已有更新的提交，
+    # 若直接写入新版 bjSha/updated，会把「内容仍是旧 commit」的数据标成新版，
+    # 导致 App 误判为已是最新而不再提示更新。
+    if "--pin-meta" in sys.argv:
+        old_path = os.path.join(BASE, "deploy", "timetable.json")
+        if os.path.exists(old_path):
+            try:
+                om = json.load(open(old_path, encoding="utf-8")).get("meta", {})
+                for k in ("updated", "bjSha", "commitSha"):
+                    if om.get(k):
+                        meta[k] = om[k]
+                log("--pin-meta: 沿用旧版本信息 updated=%s bjSha=%s"
+                    % (meta.get("updated"), str(meta.get("bjSha"))[:12]))
+            except Exception as e:
+                log("--pin-meta 读取旧数据失败: %s" % e)
 
+    payload = {"meta": meta, "lines": lines, "stations": stations,
+               "initial": initial, "lineOrder": line_order}
+    json_str = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
     log("数据 JSON 大小: %.2f MB" % (len(json_str.encode("utf-8")) / 1048576))
 
+    # HTML 注入：转义 < 防止 </script> 提前闭合
+    html_json = json_str.replace("<", "\\u003c")
     tpl = open(TPL, encoding="utf-8").read()
     assert "__DATA__" in tpl, "模板缺少 __DATA__ 占位符"
     with open(OUT, "w", encoding="utf-8") as f:
-        f.write(tpl.replace("__DATA__", json_str))
-
+        f.write(tpl.replace("__DATA__", html_json))
     log("生成完成: %s (%.2f MB)" % (OUT, os.path.getsize(OUT) / 1048576))
+
+    # 新增：输出 timetable.json（App 内嵌 assets 兜底 + deploy 线上更新源，两处内容一致）
+    # 注意：安卓端已改为 WebView 直接承载 beijing-metro.html，不再读 assets/timetable.json。
+    # 这里放到 android/ 根目录（assets 之外），仅供留存，避免把 1MB 冗余数据打进 APK。
+    for dst in (os.path.join(BASE, "android", "timetable.json"),
+                os.path.join(BASE, "deploy", "timetable.json")):
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        with open(dst, "w", encoding="utf-8") as f:
+            f.write(json_str)
+        log("timetable.json 输出: %s (%.2f MB)" % (dst, os.path.getsize(dst) / 1048576))
 
     for sample in ("苹果园", "西直门", "国贸", "东四十条"):
         if sample in stations:
             rec = stations[sample][0]
-            g0 = rec["g"][0] if rec.get("g") else []
+            g0_raw = rec["g"][0] if rec.get("g") else []
+            g0 = expand_schedule(g0_raw) if g0_raw else []
             log("抽查 %s: %s %s | 首班 %s 末班 %s | 组%d 班%d" % (
                 sample, rec["l"], rec["d"],
                 _fmt(g0[0]) if g0 else "-", _fmt(g0[-1]) if g0 else "-",

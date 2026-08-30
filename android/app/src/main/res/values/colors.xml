@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 与网页版 CSS 变量保持一致（beijing-metro.html :root） -->
+    <color name="primary">#2850E6</color>
+    <color name="primary_deep">#1B3BBF</color>
+    <color name="primary_weak">#EAEFFF</color>
+    <color name="bg">#F3F4F6</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="ink">#161A24</color>
+    <color name="line">#E4E7EC</color>
+    <color name="danger">#E5484D</color>
+</resources>
