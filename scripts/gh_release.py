@@ -15,7 +15,7 @@ import urllib.request
 import urllib.error
 
 REPO = "limboking/metro-next"
-VER = "1.0.23"
+VER = "1.0.24"
 TAG = "v" + VER
 NAME = "Metro Next v" + VER
 APK_PATH = r"D:/WorkBuddy_Save/手机小程序开发/MetroNext-release.apk"
