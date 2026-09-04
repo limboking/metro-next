@@ -28,6 +28,8 @@ import java.util.Calendar
  * - 页码按 appWidgetId 独立存储，桌面上放多个小部件互不干扰。
  * - 点箭头翻页；点 ↻ 只刷新当前小部件；点其他区域打开 App（不做 deep link）。
  * - v1.0.19 起三个布局控件 id 完全一致（w_refresh + pager_*），render() 无分支。
+ * - v1.0.24 起末页从队尾回退取满（无孤儿页）：收藏数非每页整数倍时，末页
+ *   与前一页有少量重叠，但每页都是满行。
  */
 abstract class BaseWidget : AppWidgetProvider() {
 
@@ -189,7 +191,11 @@ abstract class BaseWidget : AppWidgetProvider() {
         WidgetPrefs.setPage(ctx, id, page)
 
         val list = if (rows.isNullOrEmpty()) listOf(emptyRow(ctx)) else rows
-        val start = page * perPage
+        // v1.0.24 末页补齐：最后一页从队尾回退取满 perPage 行。此前 8 个收藏 +
+        // 每页 6 站时末页只剩 2 行（weight 均分后各占半屏，中间大片留白），
+        // 被用户当成「站点丢了」。代价是与前一页有少量重叠（收藏数非 perPage
+        // 整数倍时），但任何一页都是满行，且收藏较少（≤perPage）时无变化。
+        val start = minOf(page * perPage, (list.size - perPage).coerceAtLeast(0))
 
         if (perPage == 1) {
             bindSmall(ctx, views, list.getOrNull(start))

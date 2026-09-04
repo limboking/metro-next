@@ -177,7 +177,11 @@ D:\WorkBuddy_Save\手机小程序开发\
   （原生 debug 构建加载网页时附加 ?debug=1，网页端据此显隐按钮）；release 与
   debug 同签名（signingConfig=debug，可直接覆盖升级）；build_apk.sh 支持
   `bash build_apk.sh [debug|release]` 变体。
-- 当前构建 versionCode 23 / versionName 1.0.23。
+- 当前构建 versionCode 24 / versionName 1.0.24。
+- v1.0.24：末页补齐——收藏数非每页整数倍时（如 8 站/每页 6 站），末页原来
+  只剩 1-2 行且 weight 均分导致大片留白（用户误以为站点丢失）；现末页从
+  队尾回退取满（`start = min(page*perPage, total-perPage)`），与前一页少量
+  重叠但每页满行。
 - v1.0.23（诊断增强，无行为变化）：buildWidgetSnapshot 把被丢弃的收藏
   （站名不在当前数据/方向匹配失败/班次组为空）记入快照顶层 drop 字段
   （k + 原因）；原生 WidgetData.save() 读到 drop 非空时经 WidgetLog 打印
