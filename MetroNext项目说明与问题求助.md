@@ -177,7 +177,11 @@ D:\WorkBuddy_Save\手机小程序开发\
   （原生 debug 构建加载网页时附加 ?debug=1，网页端据此显隐按钮）；release 与
   debug 同签名（signingConfig=debug，可直接覆盖升级）；build_apk.sh 支持
   `bash build_apk.sh [debug|release]` 变体。
-- 当前构建 versionCode 20 / versionName 1.0.20。
+- 当前构建 versionCode 21 / versionName 1.0.21。
+- v1.0.21：release 构建彻底停写诊断日志——WidgetLog.append 入口处
+  按 `applicationInfo.flags & FLAG_DEBUGGABLE` 判定（项目未开
+  buildFeatures.buildConfig，没有 BuildConfig 类，勿用 BuildConfig.DEBUG），
+  debug 版不受影响。
 - 发布：Release APK 通过 GitHub Releases 发布（scripts/gh_release.py 自动建
   Release + 传 APK）；git push 被沙箱干扰时用 scripts/push_github.py 兜底。
 

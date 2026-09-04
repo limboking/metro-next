@@ -1,6 +1,7 @@
 package com.metronext.metro.widget
 
 import android.content.Context
+import android.content.pm.ApplicationInfo
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -21,6 +22,9 @@ object WidgetLog {
 
     @Synchronized
     fun append(context: Context, msg: String) {
+        // release 构建不写任何日志（v1.0.21）：诊断日志仅 debug 构建使用。
+        // 判定方式与 MainActivity 一致（项目未开 buildConfig 特性，无 BuildConfig 类）
+        if (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE == 0) return
         try {
             val dir = context.getExternalFilesDir(null) ?: context.filesDir
             val f = File(dir, "widget_debug.log")

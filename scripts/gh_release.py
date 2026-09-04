@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-GitHub Release 自动创建脚本（MetroNext v1.0.20）。
+GitHub Release 自动创建脚本（MetroNext，版本号见 VER 常量，发版改一处即可）。
 - 用 ctypes 调 advapi32 CredReadW 从 Windows 凭据管理器读 git:https://github.com 凭据
   （GCM 子进程在本环境被沙箱杀，无法走 git credential fill）
 - token 全程仅在进程内存中，任何输出不得包含 token 本身
@@ -15,21 +15,21 @@ import urllib.request
 import urllib.error
 
 REPO = "limboking/metro-next"
-TAG = "v1.0.20"
-NAME = "Metro Next v1.0.20"
+VER = "1.0.21"
+TAG = "v" + VER
+NAME = "Metro Next v" + VER
 APK_PATH = r"D:/WorkBuddy_Save/手机小程序开发/MetroNext-release.apk"
-ASSET_NAME = "MetroNext-v1.0.20-release.apk"
+ASSET_NAME = "MetroNext-v%s-release.apk" % VER
 
 BODY = (
-    "## 桌面小部件（新功能）\n"
-    "- 三尺寸小部件：2×2（单站）/ 4×2（3站/页）/ 4×4（6站/页），"
-    "显示下一班倒计时、时刻、线路色条、始发/快车/区间标记、下一站\n"
-    "- ↻ 手动刷新按钮（三尺寸统一，常显）：点击立即刷新当前小部件\n"
-    "- 翻页循环，多个小部件页码独立\n\n"
-    "## Release 说明\n"
-    "- release 版不带任何调试功能（诊断日志入口仅 debug 构建显示）\n"
+    "## 更新内容\n"
+    "- 修复：release 版彻底停写诊断日志（此前仅隐藏入口，日志文件仍在写，"
+    "有 512KB×2 轮转封顶；现 release 构建直接不写）\n"
+    "- debug 版诊断功能不受影响\n\n"
+    "## 说明\n"
+    "- release 版不带任何调试功能\n"
     "- 与 debug 版同签名，可直接覆盖升级，收藏数据保留\n\n"
-    "## 安装\n下载 MetroNext-v1.0.20-release.apk 安装即可。"
+    "## 安装\n下载 MetroNext-v%s-release.apk 安装即可。" % VER
 )
 
 
