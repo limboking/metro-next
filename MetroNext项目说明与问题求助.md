@@ -178,6 +178,8 @@ D:\WorkBuddy_Save\手机小程序开发\
   debug 同签名（signingConfig=debug，可直接覆盖升级）；build_apk.sh 支持
   `bash build_apk.sh [debug|release]` 变体。
 - 当前构建 versionCode 20 / versionName 1.0.20。
+- 发布：Release APK 通过 GitHub Releases 发布（scripts/gh_release.py 自动建
+  Release + 传 APK）；git push 被沙箱干扰时用 scripts/push_github.py 兜底。
 
 ## 七、附：小部件相关既有修复清单（防回归提示）
 
