@@ -173,7 +173,11 @@ D:\WorkBuddy_Save\手机小程序开发\
 - v1.0.19：2×2 也加手动刷新按钮（用户要求）：widget_small.xml 翻页列顶部加
   w_refresh，三布局控件 id 完全一致，render() 按尺寸的分支合并为统一逻辑
   （翻页控件按页数显隐、刷新按钮常显）；2×2 预览图同步加 ↻。
-- 当前构建 versionCode 19 / versionName 1.0.19。
+- v1.0.20：release 版去调试功能——「小部件诊断日志」入口仅 debug 构建显示
+  （原生 debug 构建加载网页时附加 ?debug=1，网页端据此显隐按钮）；release 与
+  debug 同签名（signingConfig=debug，可直接覆盖升级）；build_apk.sh 支持
+  `bash build_apk.sh [debug|release]` 变体。
+- 当前构建 versionCode 20 / versionName 1.0.20。
 
 ## 七、附：小部件相关既有修复清单（防回归提示）
 
