@@ -13,8 +13,8 @@ android {
         targetSdk = 34
         // 每次出包必须递增：debug 包签名相同，versionCode 不变时在「应用信息」里
         // 看不出装的到底是哪一版，排查「改了没生效」会浪费大量时间。
-        versionCode = 22
-        versionName = "1.0.22"
+        versionCode = 23
+        versionName = "1.0.23"
     }
 
     // 默认调试签名库在 C:\Users\King\.android\debug.keystore，其 .lock 被占用导致

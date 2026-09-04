@@ -15,7 +15,7 @@ import urllib.request
 import urllib.error
 
 REPO = "limboking/metro-next"
-VER = "1.0.22"
+VER = "1.0.23"
 TAG = "v" + VER
 NAME = "Metro Next v" + VER
 APK_PATH = r"D:/WorkBuddy_Save/手机小程序开发/MetroNext-release.apk"
@@ -23,9 +23,10 @@ ASSET_NAME = "MetroNext-v%s-release.apk" % VER
 
 BODY = (
     "## 更新内容\n"
-    "- 修复：APK 内混入构建残留 metro.html.old_*（约 0.35MB），包体虚大——"
-    "打包脚本 tar 排除模式补全（*.old_*），源树残留已清理\n"
-    "- 功能与 v1.0.21 完全一致（对抗式审查确认：v1.0.19→v1.0.22 安卓渲染/数据代码零改动）\n\n"
+    "- 诊断增强：快照生成时被丢弃的收藏（站名不在数据/方向匹配失败/班次组为空）"
+    "会记入快照 drop 字段，debug 版诊断日志打印「快照丢弃收藏」行——用于定位"
+    "「小部件只剩 N 行」类问题；release 版无任何行为变化\n"
+    "- 包含 v1.0.22 的打包残留修复（APK 体积恢复正常）\n\n"
     "## 说明\n"
     "- release 版不带任何调试功能、不写诊断日志\n"
     "- 与 debug 版同签名，可直接覆盖升级，收藏数据保留\n\n"

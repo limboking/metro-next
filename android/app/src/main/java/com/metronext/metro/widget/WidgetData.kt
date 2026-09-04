@@ -100,6 +100,17 @@ object WidgetData {
     /** 保存网页侧推送来的快照 */
     fun save(context: Context, json: String) {
         try {
+            // 诊断（v1.0.23，仅 debug 落盘——WidgetLog 在 release 直接 return）：
+            // 网页侧快照会把「匹配不到班次」的收藏记入 drop 字段，用于定位
+            // 「小部件只剩 N 行」类问题（否则丢弃完全静默，无从排查）
+            try {
+                val drop = JSONObject(json).optJSONArray("drop")
+                if (drop != null && drop.length() > 0) {
+                    val names = (0 until drop.length()).joinToString(" | ") { drop.optString(it) }
+                    WidgetLog.append(context, "快照丢弃收藏(${drop.length()}): $names")
+                }
+            } catch (_: Exception) {
+            }
             atomicWrite(File(context.filesDir, FILE_NAME), json)
         } catch (_: Exception) {
             // 写失败不影响主功能，小部件下次刷新仍会读到旧快照

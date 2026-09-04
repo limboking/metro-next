@@ -1660,7 +1660,7 @@ function recMarks(rec){
 
 function buildWidgetSnapshot(){
   try {
-    var keys = sortFavKeys(Object.keys(favs)), out = [], i, j, r;
+    var keys = sortFavKeys(Object.keys(favs)), out = [], drop = [], i, j, r;
     for (i=0;i<keys.length;i++){
       var k = keys[i], name = k, recs = null;
       if (isDirKey(k)){
@@ -1668,7 +1668,13 @@ function buildWidgetSnapshot(){
         name = pk.st; recs = [];
         for (j=0;j<tmp.length;j++) if (tmp[j].l === pk.l && tmp[j].d === pk.d){ recs = [tmp[j]]; break; }
       } else recs = STATIONS[k] || [];
-      if (!recs || !recs.length) continue;
+      /* 诊断（v1.0.23）：匹配不到班次的收藏此前被静默丢弃，导致「小部件只剩
+         N 行」时无从定位。现把被丢的收藏与原因记入快照 drop 字段，
+         原生侧 debug 构建会在诊断日志打印（release 不落盘）。 */
+      if (!recs || !recs.length){
+        drop.push(k + (isDirKey(k) ? "（方向匹配失败）" : "（站名不在当前数据）"));
+        continue;
+      }
       var items = [];
       for (r=0;r<recs.length;r++){
         var rec = recs[r];
@@ -1693,10 +1699,13 @@ function buildWidgetSnapshot(){
         items.push(it);
       }
       if (items.length) out.push({ n: name, it: items });
+      else drop.push(k + "（班次组为空）");
     }
     /* v:2 —— 2026-08-31：新增 mk 标记 + d 字段。原生侧对 v<2 的旧快照直接弃用，
        避免旧缓存缺 dirDesc/mk 导致环线无方向、始发不显示（曾在线上复现）。 */
-    return JSON.stringify({ v: 2, ts: Date.now(), f: out });
+    var snap = { v: 2, ts: Date.now(), f: out };
+    if (drop.length) snap.drop = drop;
+    return JSON.stringify(snap);
   } catch(e){ return null; }
 }
 /* 推送给原生：安卓通过 addJavascriptInterface 注入 window.MetroWidget */

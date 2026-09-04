@@ -177,7 +177,12 @@ D:\WorkBuddy_Save\手机小程序开发\
   （原生 debug 构建加载网页时附加 ?debug=1，网页端据此显隐按钮）；release 与
   debug 同签名（signingConfig=debug，可直接覆盖升级）；build_apk.sh 支持
   `bash build_apk.sh [debug|release]` 变体。
-- 当前构建 versionCode 22 / versionName 1.0.22。
+- 当前构建 versionCode 23 / versionName 1.0.23。
+- v1.0.23（诊断增强，无行为变化）：buildWidgetSnapshot 把被丢弃的收藏
+  （站名不在当前数据/方向匹配失败/班次组为空）记入快照顶层 drop 字段
+  （k + 原因）；原生 WidgetData.save() 读到 drop 非空时经 WidgetLog 打印
+  「快照丢弃收藏(N): ...」——仅 debug 构建落盘。用于定位「小部件只剩
+  N 行」：rows 行给快照实际站点，drop 行给被丢站点及原因。
 - v1.0.22（纯打包修复，功能与 v1.0.21 一致）：build_apk.sh 的 tar 排除模式
   原先 `*_old_*` 匹配不到 `metro.html.old_*`（点号形态），导致 sync 时改名
   留下的旧 metro.html 残留被打进 APK（包体虚大 ~0.35MB）。已补
