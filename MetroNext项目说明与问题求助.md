@@ -177,11 +177,21 @@ D:\WorkBuddy_Save\手机小程序开发\
   （原生 debug 构建加载网页时附加 ?debug=1，网页端据此显隐按钮）；release 与
   debug 同签名（signingConfig=debug，可直接覆盖升级）；build_apk.sh 支持
   `bash build_apk.sh [debug|release]` 变体。
-- 当前构建 versionCode 21 / versionName 1.0.21。
+- 当前构建 versionCode 22 / versionName 1.0.22。
+- v1.0.22（纯打包修复，功能与 v1.0.21 一致）：build_apk.sh 的 tar 排除模式
+  原先 `*_old_*` 匹配不到 `metro.html.old_*`（点号形态），导致 sync 时改名
+  留下的旧 metro.html 残留被打进 APK（包体虚大 ~0.35MB）。已补
+  `*.old_*`/`*.bak`/`*.tmp` 等排除项并清理源树残留。
 - v1.0.21：release 构建彻底停写诊断日志——WidgetLog.append 入口处
   按 `applicationInfo.flags & FLAG_DEBUGGABLE` 判定（项目未开
   buildFeatures.buildConfig，没有 BuildConfig 类，勿用 BuildConfig.DEBUG），
   debug 版不受影响。
+- 对抗式审查记录（2026-09-04，三 Agent 独立结论）：v1.0.19→v1.0.22 安卓
+  渲染/数据代码零改动；「4×2/4×4 只显示 2 行」唯一代码层解释是快照里只剩
+  2 个收藏站（rows.size==2），需用 debug 版诊断日志的 `rows:` 行定位是哪
+  环节丢的；「小部件从选择器消失」在 APK/清单层面无任何异常（aapt dump
+  xmltree 验证 receiver/provider 完好），判定为 HyperOS 桌面缓存问题，
+  重启手机可恢复。
 - 发布：Release APK 通过 GitHub Releases 发布（scripts/gh_release.py 自动建
   Release + 传 APK）；git push 被沙箱干扰时用 scripts/push_github.py 兜底。
 

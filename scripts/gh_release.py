@@ -15,7 +15,7 @@ import urllib.request
 import urllib.error
 
 REPO = "limboking/metro-next"
-VER = "1.0.21"
+VER = "1.0.22"
 TAG = "v" + VER
 NAME = "Metro Next v" + VER
 APK_PATH = r"D:/WorkBuddy_Save/手机小程序开发/MetroNext-release.apk"
@@ -23,11 +23,11 @@ ASSET_NAME = "MetroNext-v%s-release.apk" % VER
 
 BODY = (
     "## 更新内容\n"
-    "- 修复：release 版彻底停写诊断日志（此前仅隐藏入口，日志文件仍在写，"
-    "有 512KB×2 轮转封顶；现 release 构建直接不写）\n"
-    "- debug 版诊断功能不受影响\n\n"
+    "- 修复：APK 内混入构建残留 metro.html.old_*（约 0.35MB），包体虚大——"
+    "打包脚本 tar 排除模式补全（*.old_*），源树残留已清理\n"
+    "- 功能与 v1.0.21 完全一致（对抗式审查确认：v1.0.19→v1.0.22 安卓渲染/数据代码零改动）\n\n"
     "## 说明\n"
-    "- release 版不带任何调试功能\n"
+    "- release 版不带任何调试功能、不写诊断日志\n"
     "- 与 debug 版同签名，可直接覆盖升级，收藏数据保留\n\n"
     "## 安装\n下载 MetroNext-v%s-release.apk 安装即可。" % VER
 )

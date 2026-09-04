@@ -136,11 +136,19 @@ sync_source() {
     fi
     # WorkBuddy safe-delete 会拦截 rm -rf 整个目录（实测：目录仍在且命令无输出，
     # 脚本后续步骤全部不执行）。改用 rename（mv）绕开；旧目录保留为 .old_*，
-    # tar 打包时会被 --exclude='*_old_*' 排除，不影响构建产物。
+    # tar 打包时排除。注意排除模式必须同时覆盖两种形态：
+    #   *_old_*  → 目录/文件名中含「_old_」（下划线，如 .gradle_bak、xxx_old_123）
+    #   *.old_*  → metro.html.old_123 这类「.old_」（点号，sync_source 的 mv 改名产物）
+    #   （v1.0.21 及之前只写了 *_old_*，导致 metro.html.old_* 残留被打进 APK，
+    #     包体凭空多出约 0.35MB——v1.0.22 修复）
     if [ -d "$BUILD_PROJ" ]; then
         mv -f "$BUILD_PROJ" "${BUILD_PROJ}.old_$(date +%s)" 2>/dev/null || true
     fi
-    tar cf - --exclude='build' --exclude='.gradle' --exclude='*_bak*' --exclude='*_old_*' android 2>/dev/null \
+    tar cf - --exclude='build' --exclude='.gradle' \
+        --exclude='*_old_*' --exclude='*.old_*' \
+        --exclude='*_bak*' --exclude='*.bak' \
+        --exclude='*.tmp' --exclude='*.swp' --exclude='*~' \
+        android 2>/dev/null \
         | (cd "$BUILD_ROOT" && tar xf - 2>/dev/null)
     if [ ! -f "$BUILD_PROJ/app/src/main/java/com/metronext/metro/MainActivity.kt" ]; then
         echo "[sync] 失败：MainActivity.kt 未同步"
