@@ -381,6 +381,7 @@ body{
         <span class="glyph">🚇</span>
         还没有收藏站点<br>点下方按钮，选个常坐的站吧
       </div>
+      <button id="btnWidgetDiag" style="display:block;margin:12px auto 4px;padding:7px 16px;border:1px solid var(--line);border-radius:16px;background:var(--surface);color:var(--ink-2);font-size:12px;cursor:pointer;">小部件诊断日志</button>
     </div>
     <div class="bottom-bar"><button class="main-btn" id="btnPick"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>选择站点</button></div>
   </section>
@@ -431,6 +432,8 @@ body{
   <div class="grip"></div>
   <div class="sheet-title" id="sheetTitle">删除收藏？</div>
   <div class="sheet-sub" id="sheetSub">—</div>
+  <pre id="sheetLog" style="display:none;margin:0 0 12px;padding:10px;background:var(--surface-2);border-radius:10px;font-size:11px;line-height:1.55;color:var(--ink-2);white-space:pre-wrap;word-break:break-all;max-height:45vh;overflow:auto;text-align:left;"></pre>
+  <button class="sb" id="sheetClearLog" style="display:none;margin-right:8px;background:var(--surface);color:var(--ink-2);border:1px solid var(--line);">清空日志</button>
   <button class="sb sb-del" id="sheetDel">删除收藏</button>
   <button class="sb sb-cancel" id="sheetCancel">取消</button>
 </div>
@@ -489,13 +492,25 @@ function loadBestData(){
   // 新格式（delta）展开一次；随后释放内嵌数据文本（刷新时 HTML 重新解析会恢复）
   if (builtin.meta && builtin.meta.fmt === DATA_FORMAT) expandDataG(builtin);
   try { el.textContent = ""; } catch(e){}
-  // localStorage 中自助更新的新数据优先（格式匹配 + bjSha 与内置不同）
+  // localStorage 中自助更新的数据：必须「比内置新 且 不缺关键结构」才优先。
+  // 此前只要 bjSha 不同就用缓存——App 的 WebView 里残留旧版自助更新缓存（早于
+  // lineOrder 站序烘焙），把带站序的新内置数据顶掉 → 线路站点排序回退成按站名
+  // 排（App 内乱序、浏览器正常，根因即此）。
   try {
     var cached = JSON.parse(localStorage.getItem("bjmetro_data") || "null");
+    var hasOrder = function(d){ return !!(d.lineOrder && Object.keys(d.lineOrder).length); };
+    var cachedNewer = cached && cached.meta && cached.meta.updated
+      && (!builtin.meta.updated || String(cached.meta.updated) >= String(builtin.meta.updated));
     if (cached && cached.meta && cached.meta.fmt === DATA_FORMAT && builtin.meta.bjSha
-        && String(cached.meta.bjSha) !== String(builtin.meta.bjSha)){
+        && String(cached.meta.bjSha) !== String(builtin.meta.bjSha)
+        && cachedNewer
+        && (hasOrder(cached) || !hasOrder(builtin))){
       expandDataG(cached);
       return cached;
+    }
+    // 缓存被判定为过期/缺结构 → 清掉，避免下次仍走这段判断
+    if (cached && (!cachedNewer || (hasOrder(builtin) && !hasOrder(cached)))){
+      try { localStorage.removeItem("bjmetro_data"); } catch(e){}
     }
   } catch(e){}
   return builtin;
@@ -967,6 +982,7 @@ var sheetMode = "del";       // del=删除确认 | update=检查更新确认 | i
 var editMode = false;        // 收藏编辑态（长按进入：可拖动排序、点 X 删除）
 var drag = null;             // 拖拽状态 {card, id, startY, moved}
 var lastPointerId = null;    // 最近一次 pointerdown 的 id，用于长按后接管指针
+var lastX = 0;               // 最近一次 pointer 的 clientX（判断移动阈值，避免误中断长按）
 var lastY = 0;               // 最近一次 pointer 的 clientY（长按触发时作为拖拽起点）
 var editPushed = false;      // 进入编辑态时是否压入过历史记录（供安卓系统返回手势/返回键退出）
 var editSuppressPop = false; // 退出编辑态时主动 history.back() 引发的 popstate 不再切换视图
@@ -983,8 +999,37 @@ function closeSheet(){
   $("sheetMask").classList.remove("show");
   $("sheet").classList.remove("show");
   $("sheetDel").classList.remove("primary");
+  $("sheetClearLog").style.display = "none";
+  $("sheetLog").style.display = "none";
   pressFired = false;
   document.querySelectorAll(".fav-card.pressing").forEach(function(c){ c.classList.remove("pressing"); });
+}
+/* 读取并显示小部件诊断日志（由原生侧写入 widget_debug.log，无 adb 时定位载入失败） */
+function showWidgetLog(){
+  var log = "";
+  try {
+    if (!window.MetroWidget) log = "当前不是安卓 App 环境（网页版无此功能）";
+    else log = window.MetroWidget.getWidgetLog() || "";
+  } catch(e){ log = "读取日志失败: " + (e && e.message ? e.message : e); }
+  if (!log) log = "(暂无日志：请先添加 4×2 / 4×4 小部件复现问题，再回来查看)";
+  $("sheetTitle").textContent = "小部件诊断日志";
+  $("sheetSub").textContent = "";
+  $("sheetDel").textContent = "知道了";
+  $("sheetDel").classList.add("primary");
+  $("sheetClearLog").style.display = "block";
+  sheetMode = "info";
+  $("sheetLog").textContent = log;
+  $("sheetLog").style.display = "block";
+  $("sheetMask").classList.add("show");
+  $("sheet").classList.add("show");
+}
+/* 清空小部件诊断日志（诊断面板按钮；Release 不需要此功能，属调试工具） */
+function clearWidgetLog(){
+  try {
+    if (window.MetroWidget && window.MetroWidget.clearWidgetLog) window.MetroWidget.clearWidgetLog();
+    toast("日志已清空");
+  } catch(e){ toast("清空失败: " + (e && e.message ? e.message : e)); }
+  showWidgetLog();   // 清空后重读展示（此时应显示空日志提示）
 }
 function onSheetDel(){
   if (sheetMode === "update"){ closeSheet(); checkUpdate(); return; }
@@ -1064,9 +1109,11 @@ function applyData(nd){
   expandDataG(nd);   // 内存展开
   DATA = nd;
   LINES = DATA.lines || {}; STATIONS = DATA.stations || {}; INITIAL = DATA.initial || {}; META = DATA.meta || {};
+  LINE_ORDER = DATA.lineOrder || {};   // 必须同步：否则更新后站点排序失效（回退成按站名排）
   buildPickerIndex();
   renderHome();
   tickHome();
+  pushWidgetSnapshot();                // 时刻表更新 → 刷新小部件快照
   if (curStation && STATIONS[curStation]) renderStation();
 }
 /* 单个方向组的时刻指纹（兼容 delta 与已展开两种格式） */
@@ -1572,6 +1619,96 @@ function syncEditUI(){
   if (done) done.classList.toggle("show", !!editMode);
 }
 
+/* ================= 桌面小部件数据快照 =================
+   安卓桌面小部件由 RemoteViews 渲染，既不能用 WebView，也不适合读 1.1MB 全量时刻表。
+   因此在这里把「收藏站点的班次」导出成精简快照，由 App 写入内部存储供小部件读取。
+   快照只含静态班次，不含「下一班」——那随时间变化，由小部件本地计算。 */
+/* 某班次组的标记映射 {分钟: "标记文本"}，文本规则与网页 marksOf 一致：
+   快车→"快车·跳N站"/"快车"、始发→"XX始发"、区间→"区间·YY"，多标记用 " · " 连接。
+   供 widget 在选中下一班后按分钟查表显示。无任何标记时返回 null（省快照体积）。 */
+function recMarks(rec){
+  if (!rec._start && !rec._fast && !rec._term) return null;
+  var mk = [], skipCache = {};
+  for (var gi=0; gi<(rec.g||[]).length; gi++){
+    var grp = rec.g[gi] || [], m = null;
+    for (var ti=0; ti<grp.length; ti++){
+      var tm = grp[ti], parts = [];
+      var fast = rec._fast && rec._fast[gi] && rec._fast[gi][tm];
+      if (fast){
+        if (skipCache[fast] === undefined){
+          var fs = META.fastSkip;
+          skipCache[fast] = fs ? fs[rec.l+"|"+rec.d+"|"+fast] : null;
+        }
+        var sk = skipCache[fast];
+        parts.push(sk && sk.length ? ("快车·跳"+sk.length+"站") : "快车");
+      }
+      var start = rec._start && rec._start[gi] && rec._start[gi][tm];
+      if (start) parts.push(start+"始发");
+      var term = rec._term && rec._term[gi] && rec._term[gi][tm];
+      if (term && term !== rec.t) parts.push("区间·"+term);
+      if (parts.length){ m = m || {}; m[tm] = parts.join(" · "); }
+    }
+    mk.push(m);
+  }
+  return mk.some(function(x){ return x; }) ? mk : null;
+}
+
+/* 下一站直接取数据预计算的 rec.n（与站点详情 dir-sub 同一来源）：
+   加载数据时 directionMeta() 已按方向算好——非环线取行驶方向邻站；
+   环线按 reversed 标志环形取邻站（内环/外环都能正确给出下一站）。
+   不再用 LINE_ORDER 推算（v1.0.9 的实现对环线返回空，是缺陷）。 */
+
+function buildWidgetSnapshot(){
+  try {
+    var keys = sortFavKeys(Object.keys(favs)), out = [], i, j, r;
+    for (i=0;i<keys.length;i++){
+      var k = keys[i], name = k, recs = null;
+      if (isDirKey(k)){
+        var pk = splitDirKey(k), tmp = STATIONS[pk.st] || [];
+        name = pk.st; recs = [];
+        for (j=0;j<tmp.length;j++) if (tmp[j].l === pk.l && tmp[j].d === pk.d){ recs = [tmp[j]]; break; }
+      } else recs = STATIONS[k] || [];
+      if (!recs || !recs.length) continue;
+      var items = [];
+      for (r=0;r<recs.length;r++){
+        var rec = recs[r];
+        if (!rec.g || !rec.g.length) continue;
+        /* g 是加载时已展开 delta 的完整分钟数组；dow 为周一~周日各指向 g 的索引 */
+        /* dirDesc：网页拼好的「线路名 · 方向」摘要，直接交给 widget 渲染。
+           环线（rec.t 为空）用 rec.d 显示方向（如"2号线 · 内环"）；
+           否则显示"X号线 · 开往 Y"。避免原生侧再拼装，并杜绝环线方向丢失。 */
+        var dirDesc = rec.t
+          ? (rec.l + " · 开往 " + rec.t)
+          : (rec.l + " · " + (rec.d || ""));
+        var it = {
+          l: rec.l, c: LINES[rec.l] || "#9AA1AF", t: rec.t || "",
+          d: rec.d || "",
+          dirDesc: dirDesc,
+          dow: rec.dow || "", g: rec.g
+        };
+        var mk = recMarks(rec);
+        if (mk) it.mk = mk;          // 始发/快车/区间标记（与 g 平行）
+        var ns = rec.n || "";
+        if (ns) it.ns = ns;          // 下一站：数据预计算（环线同样有值）
+        items.push(it);
+      }
+      if (items.length) out.push({ n: name, it: items });
+    }
+    /* v:2 —— 2026-08-31：新增 mk 标记 + d 字段。原生侧对 v<2 的旧快照直接弃用，
+       避免旧缓存缺 dirDesc/mk 导致环线无方向、始发不显示（曾在线上复现）。 */
+    return JSON.stringify({ v: 2, ts: Date.now(), f: out });
+  } catch(e){ return null; }
+}
+/* 推送给原生：安卓通过 addJavascriptInterface 注入 window.MetroWidget */
+function pushWidgetSnapshot(){
+  try {
+    if (window.MetroWidget && window.MetroWidget.onSnapshot){
+      var s = buildWidgetSnapshot();
+      if (s) window.MetroWidget.onSnapshot(s);
+    }
+  } catch(e){}
+}
+
 function toggleFav(k){
   if (favs[k]) delete favs[k];
   else favs[k] = Date.now();
@@ -1580,6 +1717,7 @@ function toggleFav(k){
     var fi = favOrder.indexOf(k);
     if (fi >= 0){ favOrder.splice(fi, 1); saveFavOrder(); }
   }
+  pushWidgetSnapshot();                           // 收藏变了 → 刷新小部件快照
   renderHome();
   if (curStation===k){
     var star=$("stStar"); star.textContent = favs[k]?"★":"☆"; star.classList.toggle("on", !!favs[k]);
@@ -1612,6 +1750,7 @@ function init(){
   buildPickerIndex();
   renderHome();
   tickHome();
+  pushWidgetSnapshot();
   autoCheckUpdate();
 
   $("btnPick").addEventListener("click", function(){ navTo("view-picker", {v:"picker"}); });
@@ -1675,6 +1814,7 @@ function init(){
   function commitOrder(){
     favOrder = currentDomOrder().filter(function(k){ return favs[k] !== undefined; });
     saveFavOrder();
+    pushWidgetSnapshot();            // 顺序变了 → 刷新小部件快照（小部件跟随收藏顺序）
   }
   function enterEdit(){
     if (editMode) return;
@@ -1751,6 +1891,7 @@ function init(){
     var k = card.getAttribute("data-key");
     clearPress();
     lastPointerId = e.pointerId;
+    lastX = e.clientX;
     lastY = e.clientY;
 
     if (editMode){
@@ -1763,12 +1904,14 @@ function init(){
 
     pressKey = k;
     pressFired = false;
+    // 450ms：比 Android 标准长按（500ms）略早，缩短被系统手势打断的窗口。
+    // 误触风险由 touchmove 的 12px 移动阈值兜住（滚动列表时移动必然超阈值）。
     pressTimer = setTimeout(function(){
       pressFired = true;
       enterEdit();
       navigator.vibrate && navigator.vibrate(30);
       startDrag(card);
-    }, 520);
+    }, 450);
   });
 
   /* 拖动位移与换位（clientY 为视口坐标），鼠标与触摸共用 */
@@ -1811,13 +1954,29 @@ function init(){
   }, { passive:false });
 
   // 触摸：必须在 touchmove 阶段 preventDefault。
-  // 关键坑：pointermove 里调 preventDefault() 无法阻止页面滚动；浏览器一旦把手势判定为滚动，
+  // 关键坑 1：pointermove 里调 preventDefault() 无法阻止页面滚动；浏览器一旦把手势判定为滚动，
   // 就会发出 pointercancel，而 pointercancel 会结束拖拽 —— 表现为「能进编辑态但拖不动」。
+  // 关键坑 2：非编辑态下长按需要 520ms，若手指轻微移动就触发滚动，pointercancel 会取消长按定时器，
+  // 导致“震动一下但没进编辑态”。因此 pressTimer 存在时，只有明显移动（>12px）才取消长按并允许滚动。
   list.addEventListener("touchmove", function(e){
-    if (!drag) return;
-    e.preventDefault();
-    var t = e.touches && e.touches[0];
-    if (t) onDragMove(t.clientY);
+    if (drag) {
+      e.preventDefault();
+      var t = e.touches && e.touches[0];
+      if (t) onDragMove(t.clientY);
+      return;
+    }
+    if (pressTimer) {
+      var t = e.touches && e.touches[0];
+      if (t) {
+        var dx = Math.abs(t.clientX - lastX);
+        var dy = Math.abs(t.clientY - lastY);
+        if (dx > 12 || dy > 12) {
+          clearPress();          // 明显移动：取消长按，允许页面滚动
+        } else {
+          e.preventDefault();    // 微小移动：阻止滚动，保住长按定时器
+        }
+      }
+    }
   }, { passive:false });
 
   list.addEventListener("pointerup", function(e){
@@ -1833,9 +1992,21 @@ function init(){
     if (e && e.pointerType && e.pointerType !== "touch") endDrag();
   });
   list.addEventListener("pointerleave", function(){ if (!drag) clearPress(); });
-  // 屏蔽长按系统菜单，避免打断编辑态
+  // 长按系统菜单：既屏蔽它，也把它当作「系统级长按检测」的兜底入口。
+  // 只靠 JS setTimeout 的隐患：touchmove 被浏览器判定为滚动后会发 pointercancel / touchcancel，
+  // 从而取消定时器 —— 表现为「震一下但没进编辑态」，且随机复现。
+  // contextmenu 由 WebView 在长按约 500ms 时派发，是系统级检测，不受 JS 事件取消影响，可靠得多。
   list.addEventListener("contextmenu", function(e){
-    if (editMode || e.target.closest(".fav-card")) e.preventDefault();
+    var card = e.target && e.target.closest ? e.target.closest(".fav-card") : null;
+    if (editMode || card) e.preventDefault();
+    if (card && !editMode){
+      clearPress();
+      pressFired = true;
+      pressKey = card.getAttribute("data-key");
+      enterEdit();
+      navigator.vibrate && navigator.vibrate(30);
+      startDrag(card);
+    }
   });
 
   list.addEventListener("click", function(e){
@@ -1952,6 +2123,10 @@ function init(){
   // 数据说明
   $("dataNote").textContent = "数据来源：beijing-subway-schedule（CC BY-SA 4.0）· 更新于 "+(META.updated||"—")
     +" · 时刻为计划时间，实际以现场为准";
+
+  // 小部件诊断日志（仅安卓 App 内生效）
+  $("btnWidgetDiag").addEventListener("click", showWidgetLog);
+  $("sheetClearLog").addEventListener("click", clearWidgetLog);
 
   // 每秒刷新
   setInterval(function(){

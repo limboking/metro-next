@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 4×4 小部件：每页 4 个站点 -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:initialLayout="@layout/widget_list6"
+    android:minWidth="250dp"
+    android:minHeight="250dp"
+    android:resizeMode="horizontal|vertical"
+    android:targetCellWidth="4"
+    android:targetCellHeight="4"
+    android:updatePeriodMillis="1800000"
+    android:previewImage="@drawable/widget_preview_large"
+    android:description="@string/widget_desc_large"
+    android:widgetCategory="home_screen" />

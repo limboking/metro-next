@@ -6,6 +6,10 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- 长按进入编辑态时的触感反馈（navigator.vibrate） -->
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- 小部件刷新：setAndAllowWhileIdle 每分钟自续闹钟链，无需精确闹钟权限
+         （SCHEDULE_EXACT_ALARM 在 Android 14 上默认拒绝且需用户授权，已弃用） -->
+    <!-- 开机后重排小部件刷新闹钟（系统开机会清空全部 AlarmManager 闹钟） -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
         android:allowBackup="true"
@@ -27,5 +31,55 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- ===== 桌面小部件（三种尺寸）=====
+             注释里的 meta-data 是各家厂商识别 / 额外能力的入口：
+             com.hihonor.widget.type 让荣耀在小部件中心展示（遵循其原生规范）；
+             vivo_widget 系列用于 vivo 原子组件（需上架审核）。 -->
+        <receiver
+            android:name=".widget.WidgetSmall"
+            android:exported="false"
+            android:label="@string/app_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_small_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.WidgetMedium"
+            android:exported="false"
+            android:label="@string/app_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_medium_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.WidgetLarge"
+            android:exported="false"
+            android:label="@string/app_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_large_info" />
+        </receiver>
+
+        <!-- 发车时刻到达时唤醒，用于把「下一班」切换到再下一班；
+             同时监听开机完成，重排被系统清空的闹钟 -->
+        <receiver
+            android:name=".widget.WidgetTickReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>

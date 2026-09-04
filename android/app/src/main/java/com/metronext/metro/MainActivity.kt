@@ -2,9 +2,11 @@ package com.metronext.metro
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.content.Context
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
+import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
@@ -12,6 +14,11 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.webkit.WebViewAssetLoader
+import com.metronext.metro.widget.TickState
+import com.metronext.metro.widget.WidgetData
+import com.metronext.metro.widget.WidgetLog
+import com.metronext.metro.widget.WidgetTick
+import com.metronext.metro.widget.refreshAllWidgets
 
 /**
  * Metro Next —— 网页版同源安卓壳。
@@ -34,6 +41,21 @@ class MainActivity : Activity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // 崩溃捕获：写 filesDir/crash_log.txt（无 adb 时定位闪退，同早期 debug 版机制）
+        try {
+            Thread.setDefaultUncaughtExceptionHandler { _, e ->
+                try {
+                    val f = java.io.File(filesDir, "crash_log.txt")
+                    val ts = java.text.SimpleDateFormat(
+                        "yyyy-MM-dd HH:mm:ss", java.util.Locale.CHINA
+                    ).format(java.util.Date())
+                    f.writeText("$ts\n${android.util.Log.getStackTraceString(e)}")
+                } catch (_: Exception) {
+                }
+            }
+        } catch (_: Exception) {
+        }
 
         val assetLoader = WebViewAssetLoader.Builder()
             .setDomain(APP_DOMAIN)
@@ -70,12 +92,25 @@ class MainActivity : Activity() {
 
             webChromeClient = WebChromeClient()
             setBackgroundColor(Color.WHITE)
+
+            // 网页侧收藏变化时通过这个接口把精简快照交给原生，供桌面小部件读取。
+            // 注意此处在 WebView.apply{} 内，this 指向 WebView（它不是 Context），故需限定为 Activity
+            addJavascriptInterface(WidgetBridge(this@MainActivity), "MetroWidget")
         }
 
         setContentView(web)
 
         if (savedInstanceState == null) {
             web.loadUrl("https://$APP_DOMAIN/assets/public/metro.html")
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // 切到后台/返回桌面：立即刷新小部件，保证「回桌面就看到最新班次」
+        try {
+            refreshAllWidgets(this)
+        } catch (_: Exception) {
         }
     }
 
@@ -112,6 +147,45 @@ class MainActivity : Activity() {
             web.destroy()
         }
         super.onDestroy()
+    }
+
+    /**
+     * 网页 → 原生的桥接：接收收藏站点的精简快照，供桌面小部件读取。
+     * 小部件不能用 WebView，也不适合读 1.1MB 全量表，所以只传收藏相关的班次（通常几十 KB）。
+     */
+    private class WidgetBridge(private val ctx: Context) {
+        @JavascriptInterface
+        fun onSnapshot(json: String) {
+            WidgetData.save(ctx, json)
+            WidgetTick.schedule(ctx)
+            // 收藏/数据变了 → 桌面小部件立即重渲染（此前只等下次闹钟，会滞后）
+            try {
+                refreshAllWidgets(ctx)
+            } catch (_: Exception) {
+            }
+        }
+
+        /**
+         * 网页「小部件诊断日志」入口读取日志文件（无 adb 时定位载入失败）。
+         * v1.0.16：顶部附「后台刷新自检」结论，判断闹钟是否被系统推迟。
+         */
+        @JavascriptInterface
+        fun getWidgetLog(): String {
+            return try {
+                val dir = ctx.getExternalFilesDir(null) ?: ctx.filesDir
+                val body = java.io.File(dir, "widget_debug.log").takeIf { it.exists() }
+                    ?.readText() ?: "(无 widget_debug.log)"
+                TickState.summary(ctx) + "\n\n" + body
+            } catch (e: Exception) {
+                "读取日志失败: ${e.message}"
+            }
+        }
+
+        /** 清空小部件诊断日志（诊断面板「清空日志」按钮） */
+        @JavascriptInterface
+        fun clearWidgetLog() {
+            WidgetLog.clear(ctx)
+        }
     }
 
     private companion object {

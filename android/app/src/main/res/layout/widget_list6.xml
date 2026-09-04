@@ -1,0 +1,555 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v1.0.8：色条改为 TextView + setBackgroundColor（弃用位图，修复小米翻页后色条消失）。
+     其余同 v1.0.7：FrameLayout 根、翻页列钉右缘、行 weight 均分。 -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_bg"
+    android:paddingStart="10dp"
+    android:paddingEnd="4dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:paddingEnd="30dp">
+
+        <LinearLayout
+            android:id="@+id/row1"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <!-- 色条：TextView + setBackgroundColor（RemoteViews 反射方法）。
+                 不用 setImageViewBitmap——小米 launcher 对 RemoteViews 位图有
+                 缓存/丢弃问题，翻页后部分行位图不显示（v1.0.7 实测）。 -->
+            <TextView
+                android:id="@+id/row1_bar"
+                android:layout_width="4dp"
+                android:layout_height="26dp" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/row1_name"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:text="—"
+                    android:textColor="@color/widget_text_primary"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/row1_line"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="1dp"
+                    android:ellipsize="end"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:text="—"
+                    android:textColor="@color/widget_text_tertiary"
+                    android:textSize="10sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:gravity="end"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/row1_cd"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:includeFontPadding="false"
+                    android:text="—"
+                    android:textColor="@color/widget_accent"
+                    android:textSize="17sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/row1_time"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="1dp"
+                    android:includeFontPadding="false"
+                    android:text="—"
+                    android:textColor="@color/widget_text_tertiary"
+                    android:textSize="10sp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/div1"
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@color/widget_divider" />
+
+        <LinearLayout
+            android:id="@+id/row2"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <!-- 色条：TextView + setBackgroundColor（RemoteViews 反射方法）。
+                 不用 setImageViewBitmap——小米 launcher 对 RemoteViews 位图有
+                 缓存/丢弃问题，翻页后部分行位图不显示（v1.0.7 实测）。 -->
+            <TextView
+                android:id="@+id/row2_bar"
+                android:layout_width="4dp"
+                android:layout_height="26dp" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/row2_name"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:text="—"
+                    android:textColor="@color/widget_text_primary"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/row2_line"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="1dp"
+                    android:ellipsize="end"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:text="—"
+                    android:textColor="@color/widget_text_tertiary"
+                    android:textSize="10sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:gravity="end"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/row2_cd"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:includeFontPadding="false"
+                    android:text="—"
+                    android:textColor="@color/widget_accent"
+                    android:textSize="17sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/row2_time"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="1dp"
+                    android:includeFontPadding="false"
+                    android:text="—"
+                    android:textColor="@color/widget_text_tertiary"
+                    android:textSize="10sp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/div2"
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@color/widget_divider" />
+
+        <LinearLayout
+            android:id="@+id/row3"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <!-- 色条：TextView + setBackgroundColor（RemoteViews 反射方法）。
+                 不用 setImageViewBitmap——小米 launcher 对 RemoteViews 位图有
+                 缓存/丢弃问题，翻页后部分行位图不显示（v1.0.7 实测）。 -->
+            <TextView
+                android:id="@+id/row3_bar"
+                android:layout_width="4dp"
+                android:layout_height="26dp" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/row3_name"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:text="—"
+                    android:textColor="@color/widget_text_primary"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/row3_line"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="1dp"
+                    android:ellipsize="end"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:text="—"
+                    android:textColor="@color/widget_text_tertiary"
+                    android:textSize="10sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:gravity="end"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/row3_cd"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:includeFontPadding="false"
+                    android:text="—"
+                    android:textColor="@color/widget_accent"
+                    android:textSize="17sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/row3_time"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="1dp"
+                    android:includeFontPadding="false"
+                    android:text="—"
+                    android:textColor="@color/widget_text_tertiary"
+                    android:textSize="10sp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/div3"
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@color/widget_divider" />
+
+        <LinearLayout
+            android:id="@+id/row4"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <!-- 色条：TextView + setBackgroundColor（RemoteViews 反射方法）。
+                 不用 setImageViewBitmap——小米 launcher 对 RemoteViews 位图有
+                 缓存/丢弃问题，翻页后部分行位图不显示（v1.0.7 实测）。 -->
+            <TextView
+                android:id="@+id/row4_bar"
+                android:layout_width="4dp"
+                android:layout_height="26dp" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/row4_name"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:text="—"
+                    android:textColor="@color/widget_text_primary"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/row4_line"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="1dp"
+                    android:ellipsize="end"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:text="—"
+                    android:textColor="@color/widget_text_tertiary"
+                    android:textSize="10sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:gravity="end"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/row4_cd"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:includeFontPadding="false"
+                    android:text="—"
+                    android:textColor="@color/widget_accent"
+                    android:textSize="17sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/row4_time"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="1dp"
+                    android:includeFontPadding="false"
+                    android:text="—"
+                    android:textColor="@color/widget_text_tertiary"
+                    android:textSize="10sp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/div4"
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@color/widget_divider" />
+
+        <LinearLayout
+            android:id="@+id/row5"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <!-- 色条：TextView + setBackgroundColor（RemoteViews 反射方法）。
+                 不用 setImageViewBitmap——小米 launcher 对 RemoteViews 位图有
+                 缓存/丢弃问题，翻页后部分行位图不显示（v1.0.7 实测）。 -->
+            <TextView
+                android:id="@+id/row5_bar"
+                android:layout_width="4dp"
+                android:layout_height="26dp" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/row5_name"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:text="—"
+                    android:textColor="@color/widget_text_primary"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/row5_line"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="1dp"
+                    android:ellipsize="end"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:text="—"
+                    android:textColor="@color/widget_text_tertiary"
+                    android:textSize="10sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:gravity="end"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/row5_cd"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:includeFontPadding="false"
+                    android:text="—"
+                    android:textColor="@color/widget_accent"
+                    android:textSize="17sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/row5_time"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="1dp"
+                    android:includeFontPadding="false"
+                    android:text="—"
+                    android:textColor="@color/widget_text_tertiary"
+                    android:textSize="10sp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/div5"
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@color/widget_divider" />
+
+        <LinearLayout
+            android:id="@+id/row6"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <!-- 色条：TextView + setBackgroundColor（RemoteViews 反射方法）。
+                 不用 setImageViewBitmap——小米 launcher 对 RemoteViews 位图有
+                 缓存/丢弃问题，翻页后部分行位图不显示（v1.0.7 实测）。 -->
+            <TextView
+                android:id="@+id/row6_bar"
+                android:layout_width="4dp"
+                android:layout_height="26dp" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/row6_name"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:text="—"
+                    android:textColor="@color/widget_text_primary"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/row6_line"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="1dp"
+                    android:ellipsize="end"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:text="—"
+                    android:textColor="@color/widget_text_tertiary"
+                    android:textSize="10sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:gravity="end"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/row6_cd"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:includeFontPadding="false"
+                    android:text="—"
+                    android:textColor="@color/widget_accent"
+                    android:textSize="17sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/row6_time"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="1dp"
+                    android:includeFontPadding="false"
+                    android:text="—"
+                    android:textColor="@color/widget_text_tertiary"
+                    android:textSize="10sp" />
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/pager_box"
+        android:layout_width="26dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="end|center_vertical"
+        android:gravity="center"
+        android:orientation="vertical">
+
+        <!-- v1.0.17：手动刷新按钮（翻页按钮上方空白处）。
+             常显——即使只有一页（翻页控件隐藏时刷新仍可用）。 -->
+        <ImageView
+            android:id="@+id/w_refresh"
+            android:layout_width="26dp"
+            android:layout_height="30dp"
+            android:contentDescription="@string/widget_refresh"
+            android:scaleType="center"
+            android:src="@drawable/ic_refresh" />
+
+        <ImageView
+            android:id="@+id/pager_prev"
+            android:layout_width="26dp"
+            android:layout_height="30dp"
+            android:contentDescription="@string/widget_prev_page"
+            android:scaleType="center"
+            android:src="@drawable/ic_chevron_up" />
+
+        <TextView
+            android:id="@+id/pager_num"
+            android:layout_width="wrap_content"
+            android:layout_height="16dp"
+            android:gravity="center"
+            android:includeFontPadding="false"
+            android:text="1/1"
+            android:textColor="@color/widget_text_tertiary"
+            android:textSize="10sp" />
+
+        <ImageView
+            android:id="@+id/pager_next"
+            android:layout_width="26dp"
+            android:layout_height="30dp"
+            android:contentDescription="@string/widget_next_page"
+            android:scaleType="center"
+            android:src="@drawable/ic_chevron_down" />
+    </LinearLayout>
+</FrameLayout>

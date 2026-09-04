@@ -1064,9 +1064,11 @@ function applyData(nd){
   expandDataG(nd);   // 内存展开
   DATA = nd;
   LINES = DATA.lines || {}; STATIONS = DATA.stations || {}; INITIAL = DATA.initial || {}; META = DATA.meta || {};
+  LINE_ORDER = DATA.lineOrder || {};   // 必须同步：否则更新后站点排序失效（回退成按站名排）
   buildPickerIndex();
   renderHome();
   tickHome();
+  pushWidgetSnapshot();                // 时刻表更新 → 刷新小部件快照
   if (curStation && STATIONS[curStation]) renderStation();
 }
 /* 单个方向组的时刻指纹（兼容 delta 与已展开两种格式） */
@@ -1572,6 +1574,43 @@ function syncEditUI(){
   if (done) done.classList.toggle("show", !!editMode);
 }
 
+/* ================= 桌面小部件数据快照 =================
+   安卓桌面小部件由 RemoteViews 渲染，既不能用 WebView，也不适合读 1.1MB 全量时刻表。
+   因此在这里把「收藏站点的班次」导出成精简快照，由 App 写入内部存储供小部件读取。
+   快照只含静态班次，不含「下一班」——那随时间变化，由小部件本地计算。 */
+function buildWidgetSnapshot(){
+  try {
+    var keys = sortFavKeys(Object.keys(favs)), out = [], i, j, r;
+    for (i=0;i<keys.length;i++){
+      var k = keys[i], name = k, recs = null;
+      if (isDirKey(k)){
+        var pk = splitDirKey(k), tmp = STATIONS[pk.st] || [];
+        name = pk.st; recs = [];
+        for (j=0;j<tmp.length;j++) if (tmp[j].l === pk.l && tmp[j].d === pk.d){ recs = [tmp[j]]; break; }
+      } else recs = STATIONS[k] || [];
+      if (!recs || !recs.length) continue;
+      var items = [];
+      for (r=0;r<recs.length;r++){
+        var rec = recs[r];
+        if (!rec.g || !rec.g.length) continue;
+        /* g 是加载时已展开 delta 的完整分钟数组；dow 为周一~周日各指向 g 的索引 */
+        items.push({ l: rec.l, c: LINES[rec.l] || "#9AA1AF", t: rec.t || "", dow: rec.dow || "", g: rec.g });
+      }
+      if (items.length) out.push({ n: name, it: items });
+    }
+    return JSON.stringify({ v: 1, ts: Date.now(), f: out });
+  } catch(e){ return null; }
+}
+/* 推送给原生：安卓通过 addJavascriptInterface 注入 window.MetroWidget */
+function pushWidgetSnapshot(){
+  try {
+    if (window.MetroWidget && window.MetroWidget.onSnapshot){
+      var s = buildWidgetSnapshot();
+      if (s) window.MetroWidget.onSnapshot(s);
+    }
+  } catch(e){}
+}
+
 function toggleFav(k){
   if (favs[k]) delete favs[k];
   else favs[k] = Date.now();
@@ -1580,6 +1619,7 @@ function toggleFav(k){
     var fi = favOrder.indexOf(k);
     if (fi >= 0){ favOrder.splice(fi, 1); saveFavOrder(); }
   }
+  pushWidgetSnapshot();                           // 收藏变了 → 刷新小部件快照
   renderHome();
   if (curStation===k){
     var star=$("stStar"); star.textContent = favs[k]?"★":"☆"; star.classList.toggle("on", !!favs[k]);
@@ -1612,6 +1652,7 @@ function init(){
   buildPickerIndex();
   renderHome();
   tickHome();
+  pushWidgetSnapshot();
   autoCheckUpdate();
 
   $("btnPick").addEventListener("click", function(){ navTo("view-picker", {v:"picker"}); });
@@ -1675,6 +1716,7 @@ function init(){
   function commitOrder(){
     favOrder = currentDomOrder().filter(function(k){ return favs[k] !== undefined; });
     saveFavOrder();
+    pushWidgetSnapshot();            // 顺序变了 → 刷新小部件快照（小部件跟随收藏顺序）
   }
   function enterEdit(){
     if (editMode) return;

@@ -11,8 +11,10 @@ android {
         applicationId = "com.metronext.metro"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.0"
+        // 每次出包必须递增：debug 包签名相同，versionCode 不变时在「应用信息」里
+        // 看不出装的到底是哪一版，排查「改了没生效」会浪费大量时间。
+        versionCode = 19
+        versionName = "1.0.19"
     }
 
     // 默认调试签名库在 C:\Users\King\.android\debug.keystore，其 .lock 被占用导致
@@ -33,6 +35,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // v1.0.19：release 与 debug 同签名（个人分发，无正式上架需求），
+            // 手机上已装的 debug 版可直接被 release 版覆盖升级（签名必须一致）。
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 

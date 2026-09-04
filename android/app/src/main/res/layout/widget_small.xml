@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  2×2 v1.0.9：消除中部整块空隙——三个班次行各自 height=0dp weight=1 均分
+  头部（站名/线路/下一站）以下的全部剩余高度，行内容在各自区间垂直居中，
+  视觉上均匀铺满，不依赖 gravity。「下一站」行无数据时运行时 GONE（动态）。
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_bg"
+    android:paddingStart="10dp"
+    android:paddingEnd="4dp"
+    android:paddingTop="6dp"
+    android:paddingBottom="6dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:paddingEnd="30dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/w_bar"
+                android:layout_width="4dp"
+                android:layout_height="14dp" />
+
+            <TextView
+                android:id="@+id/w_name"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="西二旗"
+                android:textColor="@color/widget_text_primary"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/w_line"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:ellipsize="end"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:text="6号线 · 开往 潞阳"
+            android:textColor="@color/widget_text_tertiary"
+            android:textSize="10sp" />
+
+        <!-- 下一站：无数据时运行时 setViewVisibility(GONE) -->
+        <TextView
+            android:id="@+id/w_next"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="1dp"
+            android:ellipsize="end"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:text="下一站 十里堡"
+            android:textColor="@color/widget_text_tertiary"
+            android:textSize="10sp" />
+
+        <!-- 最近 3 班：各占 1/3 剩余高度，垂直居中 → 均匀铺满、无整块空隙 -->
+        <TextView
+            android:id="@+id/w_up1"
+            android:layout_width="wrap_content"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:gravity="center_vertical"
+            android:includeFontPadding="false"
+            android:text="15:04 · 4 分钟"
+            android:textColor="@color/widget_accent"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/w_up2"
+            android:layout_width="wrap_content"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:gravity="center_vertical"
+            android:includeFontPadding="false"
+            android:text="15:11 · 11 分钟"
+            android:textColor="@color/widget_text_secondary"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/w_up3"
+            android:layout_width="wrap_content"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:gravity="center_vertical"
+            android:includeFontPadding="false"
+            android:text="15:19 · 19 分钟"
+            android:textColor="@color/widget_text_secondary"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/pager_box"
+        android:layout_width="26dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="end|center_vertical"
+        android:gravity="center"
+        android:orientation="vertical">
+
+        <!-- v1.0.19：手动刷新按钮（与 4×2/4×4 一致，常显） -->
+        <ImageView
+            android:id="@+id/w_refresh"
+            android:layout_width="26dp"
+            android:layout_height="30dp"
+            android:contentDescription="@string/widget_refresh"
+            android:scaleType="center"
+            android:src="@drawable/ic_refresh" />
+
+        <ImageView
+            android:id="@+id/pager_prev"
+            android:layout_width="26dp"
+            android:layout_height="30dp"
+            android:contentDescription="@string/widget_prev_page"
+            android:scaleType="center"
+            android:src="@drawable/ic_chevron_up" />
+
+        <TextView
+            android:id="@+id/pager_num"
+            android:layout_width="wrap_content"
+            android:layout_height="16dp"
+            android:gravity="center"
+            android:includeFontPadding="false"
+            android:text="1/1"
+            android:textColor="@color/widget_text_tertiary"
+            android:textSize="10sp" />
+
+        <ImageView
+            android:id="@+id/pager_next"
+            android:layout_width="26dp"
+            android:layout_height="30dp"
+            android:contentDescription="@string/widget_next_page"
+            android:scaleType="center"
+            android:src="@drawable/ic_chevron_down" />
+    </LinearLayout>
+</FrameLayout>

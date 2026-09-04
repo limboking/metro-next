@@ -9,4 +9,17 @@
     <color name="ink">#161A24</color>
     <color name="line">#E4E7EC</color>
     <color name="danger">#E5484D</color>
+
+    <!-- ===== 桌面小部件专用配色（浅色） =====
+         刻意使用独立的 widget_* 命名，不复用上面的 App 颜色：
+         网页版自己处理深色模式，若复用并在 values-night 覆盖，会连带影响状态栏等 App UI。
+         深色版本见 values-night/colors.xml。 -->
+    <color name="widget_bg_color">#FFFFFF</color>
+    <color name="widget_text_primary">#161A24</color>
+    <color name="widget_text_secondary">#59616F</color>
+    <color name="widget_text_tertiary">#9AA1AF</color>
+    <color name="widget_accent">#2850E6</color>
+    <color name="widget_danger">#E5484D</color>
+    <color name="widget_divider">#F0F2F5</color>
+    <color name="widget_pager">#7A8290</color>
 </resources>

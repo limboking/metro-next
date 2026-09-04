@@ -1,4 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Metro Next</string>
+
+    <!-- 桌面小部件 -->
+    <string name="widget_line_color">线路颜色</string>
+    <string name="widget_prev_page">上一页</string>
+    <string name="widget_next_page">下一页</string>
+    <string name="widget_refresh">刷新</string>
+    <string name="widget_no_fav">还没有收藏站点</string>
+    <string name="widget_open_hint">打开应用添加收藏</string>
+    <string name="widget_desc_small">2×2 单站下一班</string>
+    <string name="widget_desc_medium">4×2 两站下一班</string>
+    <string name="widget_desc_large">4×4 四站下一班</string>
 </resources>
