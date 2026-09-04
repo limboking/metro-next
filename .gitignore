@@ -33,3 +33,4 @@ android/app/src/main/assets/public/metro.html
 
 # 测试版 APK 不入库；正式版通过 GitHub Release 发布
 *.apk
+android/app/src/main/assets/public/metro.html.old_*

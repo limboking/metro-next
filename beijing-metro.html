@@ -2124,7 +2124,11 @@ function init(){
   $("dataNote").textContent = "数据来源：beijing-subway-schedule（CC BY-SA 4.0）· 更新于 "+(META.updated||"—")
     +" · 时刻为计划时间，实际以现场为准";
 
-  // 小部件诊断日志（仅安卓 App 内生效）
+  // 小部件诊断日志（仅安卓 App debug 版内显示：原生侧 debug 构建加载时带 ?debug=1；
+  // release 版与网页版一律隐藏——诊断面板属调试工具，Release 不携带）
+  var isDebugBuild = false;
+  try { isDebugBuild = new URLSearchParams(location.search).get("debug") === "1"; } catch(e){}
+  if (!isDebugBuild) $("btnWidgetDiag").style.display = "none";
   $("btnWidgetDiag").addEventListener("click", showWidgetLog);
   $("sheetClearLog").addEventListener("click", clearWidgetLog);
 

@@ -101,7 +101,10 @@ class MainActivity : Activity() {
         setContentView(web)
 
         if (savedInstanceState == null) {
-            web.loadUrl("https://$APP_DOMAIN/assets/public/metro.html")
+            // v1.0.20：仅 debug 构建给网页带 ?debug=1（显示「小部件诊断日志」入口）；
+            // release 版不带任何调试功能。用 FLAG_DEBUGGABLE 判断，免开 buildConfig 特性。
+            val isDebug = (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
+            web.loadUrl("https://$APP_DOMAIN/assets/public/metro.html" + if (isDebug) "?debug=1" else "")
         }
     }
 
