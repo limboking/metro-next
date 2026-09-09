@@ -1,0 +1,2219 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#151A26">
+<title>北京地铁时刻</title>
+<style>
+/* ================= 设计令牌 ================= */
+:root{
+  --bg:#F3F4F6;            /* 页面底 */
+  --surface:#FFFFFF;        /* 卡片 */
+  --surface-2:#F0F2F5;      /* 次级面 */
+  --surface-3:#E9ECF1;
+  --ink:#161A24;            /* 主文字 */
+  --ink-2:#59616F;          /* 次文字 */
+  --ink-3:#9AA1AF;          /* 弱文字 */
+  --primary:#2850E6;        /* 沉稳蓝 */
+  --primary-deep:#1B3BBF;
+  --primary-weak:#EAEFFF;
+  --danger:#E5484D;
+  --line:#E4E7EC;
+  --radius-xl:22px;
+  --radius-lg:16px;
+  --radius-md:12px;
+  --radius-sm:9px;
+  --shadow-1:0 1px 2px rgba(22,26,36,.04), 0 6px 20px rgba(22,26,36,.05);
+  --shadow-2:0 2px 8px rgba(22,26,36,.06), 0 18px 44px rgba(22,26,36,.14);
+  --ease:cubic-bezier(.2,0,0,1);
+  --spring:cubic-bezier(.34,1.56,.64,1);
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","HarmonyOS Sans SC","Microsoft YaHei",sans-serif;
+  background:var(--bg);color:var(--ink);font-size:16px;
+  -webkit-font-smoothing:antialiased;
+}
+#app{max-width:520px;margin:0 auto;min-height:100%;position:relative;}
+.num{font-variant-numeric:tabular-nums;letter-spacing:-.01em;}
+
+/* 视图转场 */
+.view{display:none;min-height:100vh;opacity:0;transform:translateY(10px);}
+.view.active{display:block;animation:viewIn .28s var(--ease) both;}
+@keyframes viewIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+/* 卡片入场 */
+.fade-up{animation:fadeUp .4s var(--ease) both;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+
+/* 顶栏 */
+.topbar{
+  position:sticky;top:0;z-index:20;display:flex;align-items:center;
+  padding:10px 12px 8px;background:rgba(243,244,246,.9);backdrop-filter:blur(14px);
+  -webkit-backdrop-filter:blur(14px);
+}
+.topbar .title{flex:1;font-size:16px;font-weight:600;text-align:center;margin-right:44px;letter-spacing:.02em;}
+.ibtn{
+  background:none;border:none;width:44px;height:44px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;color:var(--ink);font-size:20px;
+  transition:background .15s var(--ease);
+}
+.ibtn:active{background:var(--surface-2);}
+
+/* ================= 首页 ================= */
+.clock-card{
+  margin:14px 16px 0;border-radius:var(--radius-xl);overflow:hidden;
+  background:linear-gradient(160deg,#1A2236 0%,#12161F 100%);
+  color:#F4F6FA;box-shadow:var(--shadow-2);
+  padding:22px 22px 20px;position:relative;
+}
+.clock-card::after{
+  content:"";position:absolute;right:-40px;top:-40px;width:170px;height:170px;border-radius:50%;
+  background:radial-gradient(circle,rgba(40,80,230,.2),transparent 70%);
+  pointer-events:none;z-index:0;
+}
+.clock-top{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:#9AA6BC;position:relative;z-index:1;}
+.clock-date{font-weight:500;}
+.clock-type{font-size:12.5px;color:#9FB1D2;font-weight:500;white-space:nowrap;flex:0 0 auto;letter-spacing:.02em;}
+.clock-main{display:flex;align-items:baseline;justify-content:center;margin:14px 0 2px;position:relative;z-index:1;}
+.clock-time{font-size:52px;font-weight:800;letter-spacing:.5px;}
+.clock-sec{font-size:21px;font-weight:600;color:#9AA6BC;margin-left:3px;}
+.clock-foot{display:flex;justify-content:center;align-items:center;gap:12px;font-size:12px;color:#7E8AA0;margin-top:10px;position:relative;z-index:1;}
+.clock-foot b{color:#E8ECF4;font-weight:600;}
+.upd-btn{
+  display:inline-flex;align-items:center;gap:5px;background:none;border:none;color:inherit;
+  font-size:12px;line-height:inherit;padding:5px 9px;margin:-5px -9px;border-radius:9px;
+  cursor:pointer;font-family:inherit;transition:background .15s var(--ease),color .15s var(--ease);
+  position:relative;
+}
+.upd-btn:active{background:rgba(255,255,255,.12);color:#CDD6E6;}
+.upd-btn svg{flex:0 0 auto;}
+.upd-btn.checking svg{animation:spin 1s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.upd-btn .dot{
+  position:absolute;top:1px;right:1px;width:7px;height:7px;border-radius:50%;
+  background:#E5484D;display:none;
+}
+.upd-btn.has-update .dot{display:block;}
+
+.home-body{padding:22px 16px 96px;}
+.sec-head{display:flex;align-items:baseline;justify-content:space-between;padding:0 4px;margin-bottom:12px;gap:12px;}
+.sec-head .t{font-size:15px;font-weight:700;letter-spacing:.01em;flex:0 0 auto;}
+.sec-head .s{font-size:12px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;}
+.fav-list{display:flex;flex-direction:column;gap:11px;}
+.fav-card{
+  background:var(--surface);border-radius:var(--radius-lg);padding:15px 16px 14px;
+  box-shadow:var(--shadow-1);cursor:pointer;position:relative;overflow:hidden;
+  display:flex;gap:13px;align-items:stretch;
+  transition:transform .15s var(--ease),box-shadow .2s var(--ease);
+  animation:fadeUp .4s var(--ease) both;
+}
+.fav-card:active{transform:scale(.985);}
+.fav-card .accent{width:4px;border-radius:3px;flex:0 0 auto;align-self:stretch;}
+.fav-card .body{flex:1;min-width:0;}
+.fav-card .station-name{font-size:17px;font-weight:700;display:flex;align-items:center;gap:7px;}
+.fav-card.pressing{background:#FDEEEE;}
+.fav-card.pressing .station-name{color:var(--danger);}
+/* ===== 收藏编辑态（长按进入：拖动排序 + 点 X 删除）===== */
+/* 禁止长按选中文字 / 长按系统菜单（否则会中断手势） */
+.fav-card{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;}
+@keyframes favJiggle{
+  0%{transform:rotate(-.55deg)}
+  25%{transform:rotate(.5deg) translateY(-1px)}
+  50%{transform:rotate(-.45deg)}
+  75%{transform:rotate(.55deg) translateY(1px)}
+  100%{transform:rotate(-.55deg)}
+}
+/* 编辑态：卡片轻微抖动（逐张错开，模拟桌面图标），并露出 X 按钮 */
+/* 编辑态下锁定 touch-action：touch-action 只在手势开始时生效，
+   若等到长按后再加就晚了（浏览器已判定为滚动并会 pointercancel 中断拖拽）。
+   进入编辑态即锁定，之后的每次长按拖拽都从手势起点生效。 */
+.fav-list.editing .fav-card{overflow:visible;cursor:grab;touch-action:none;animation:favJiggle .34s var(--ease) infinite;}
+.fav-card.dragging{
+  animation:none !important;transform:scale(1.035);opacity:.97;z-index:5;cursor:grabbing;
+  box-shadow:0 12px 30px rgba(22,26,36,.20),0 2px 8px rgba(22,26,36,.10);
+  touch-action:none;   /* 拖拽时禁止页面滚动 */
+  /* 关键：基础样式带有 transition:transform .15s，若不关掉，每次 pointermove 都会被 150ms 过渡追着跑，
+     手感发飘；换位时的基准点补偿更会「先跳后追」，表现为拖动过程跳一下。 */
+  transition:none !important;
+}
+/* 拖拽进行中：暂停所有卡片的抖动动画。
+   一是避免其余卡片的 transform 干扰 getBoundingClientRect 的位置判定，
+   二是让 FLIP 换位动画可用（animation 会覆盖内联 transform）。 */
+.fav-list.dragging-active .fav-card{animation:none !important;}
+.fav-card .fav-del{
+  position:absolute;top:-7px;right:-7px;width:23px;height:23px;border-radius:50%;
+  background:var(--danger);color:#fff;font-size:14px;line-height:23px;text-align:center;
+  font-weight:700;box-shadow:0 2px 8px rgba(229,72,77,.40);display:none;z-index:6;
+}
+.fav-list.editing .fav-card .fav-del{display:block;animation:starPop .3s var(--ease) both;}
+.fav-done{display:none;margin-left:auto;font-size:13px;font-weight:700;color:var(--primary);background:none;border:none;padding:0;cursor:pointer;}
+.fav-done.show{display:inline-block;}
+.fav-lines{display:flex;gap:4px;margin-top:6px;align-items:center;}
+.fav-line{width:9px;height:9px;border-radius:3px;}
+.fav-time{display:flex;align-items:baseline;gap:7px;margin-top:8px;min-width:0;}
+.fav-time .t{font-size:16px;font-weight:700;color:var(--primary);flex:0 0 auto;font-variant-numeric:tabular-nums;}
+.fav-time .fc{font-size:12px;color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}
+/* 右侧大号倒计时块 */
+.fav-cd{
+  flex:0 0 auto;display:flex;flex-direction:column;align-items:flex-end;justify-content:center;
+  min-width:104px;text-align:right;padding:2px 0 2px 12px;border-left:1px solid var(--line);
+}
+.fav-cd .k{font-size:11px;color:var(--ink-3);letter-spacing:.08em;}
+.fav-cd .v{font-size:23px;font-weight:800;color:var(--primary);margin-top:3px;line-height:1.1;font-variant-numeric:tabular-nums;white-space:nowrap;}
+.fav-cd .v .unit{font-size:12px;font-weight:600;color:var(--ink-2);margin:0 1px;letter-spacing:0;font-variant-numeric:normal;}
+.fav-cd .nd{font-size:10px;color:#7B61FF;font-weight:600;margin-top:3px;}
+.fav-cd.off .v{color:var(--ink-3);font-size:15px;font-weight:600;}
+.fav-hint{font-size:11.5px;color:var(--ink-3);text-align:center;margin-top:14px;letter-spacing:.02em;}
+.empty-tip{text-align:center;color:var(--ink-3);padding:52px 24px;line-height:2;}
+.empty-tip .glyph{font-size:46px;display:block;margin-bottom:10px;opacity:.85;}
+
+/* 底部主按钮 */
+.bottom-bar{
+  position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:520px;
+  padding:14px 18px calc(14px + env(safe-area-inset-bottom));
+  background:linear-gradient(180deg,rgba(243,244,246,0),var(--bg) 42%);
+}
+.main-btn{
+  width:100%;height:52px;background:var(--primary);color:#fff;border:none;border-radius:16px;
+  font-size:16px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;
+  box-shadow:0 6px 18px rgba(40,80,230,.28);
+  transition:transform .12s var(--ease),background .15s var(--ease),box-shadow .2s var(--ease);
+}
+.main-btn:active{transform:scale(.98);background:var(--primary-deep);box-shadow:0 3px 10px rgba(40,80,230,.3);}
+
+/* ================= 添加到桌面（仅 App 内显示） ================= */
+/* 底部小入口：不占空间，仅在主按钮下方加 34px 的幽灵按钮 */
+.pin-entry{
+  width:100%;height:34px;margin-top:6px;display:none;align-items:center;justify-content:center;gap:6px;
+  background:transparent;border:none;border-radius:11px;cursor:pointer;
+  color:var(--ink-2);font-size:13px;font-weight:500;letter-spacing:.02em;
+  transition:background .15s var(--ease),color .15s var(--ease);
+}
+.pin-entry.show{display:flex;}
+.pin-entry:active{background:rgba(22,26,36,.06);color:var(--ink);}
+/* 「添加到桌面」入口出现后底栏从 ~80px 变为 ~120px：
+   基础 96px 是按旧底栏设计的，必须加高，否则最后一张卡片被盖住 */
+body.pin-shown .home-body{padding-bottom:calc(118px + env(safe-area-inset-bottom));}
+.pin-entry svg{color:var(--ink-3);}
+
+.pin-mask{
+  position:fixed;inset:0;z-index:60;background:rgba(16,20,30,.42);
+  opacity:0;pointer-events:none;transition:opacity .22s var(--ease);
+}
+.pin-mask.show{opacity:1;pointer-events:auto;}
+.pin-sheet{
+  position:fixed;z-index:61;left:50%;bottom:0;transform:translate(-50%,100%);
+  width:100%;max-width:520px;background:var(--surface);
+  border-radius:22px 22px 0 0;box-shadow:var(--shadow-2);
+  padding:0 16px calc(16px + env(safe-area-inset-bottom));
+  transition:transform .28s var(--ease);
+}
+.pin-sheet.show{transform:translate(-50%,0);}
+.pin-grip{width:36px;height:4px;border-radius:2px;background:var(--surface-3);margin:8px auto 10px;}
+.pin-title{font-size:16.5px;font-weight:600;text-align:center;letter-spacing:.01em;}
+.pin-sub{font-size:12.5px;color:var(--ink-3);text-align:center;margin-top:4px;}
+
+.pin-opts{margin-top:14px;display:flex;flex-direction:column;gap:8px;}
+.pin-opt{
+  display:flex;align-items:center;gap:12px;width:100%;text-align:left;cursor:pointer;
+  background:var(--surface-2);border:1.5px solid transparent;border-radius:15px;padding:10px 13px;
+  transition:background .15s var(--ease),border-color .15s var(--ease),transform .12s var(--ease);
+}
+.pin-opt:active{transform:scale(.985);background:var(--primary-weak);border-color:var(--primary);}
+/* 尺寸缩略图：按 110×110 / 300×110 / 300×250dp 的真实比例缩放 */
+.pin-thumb{flex:0 0 auto;width:46px;height:40px;display:flex;align-items:center;justify-content:center;}
+.pin-thumb i{
+  display:block;position:relative;border-radius:6px;background:#fff;
+  border:1.5px solid var(--line);overflow:hidden;
+}
+.pin-thumb i::after{
+  content:"";position:absolute;left:5px;top:20%;bottom:20%;width:3px;border-radius:2px;
+  background:var(--primary);opacity:.85;
+}
+.pin-thumb.s i{width:24px;height:24px;}
+.pin-thumb.m i{width:40px;height:16px;}
+.pin-thumb.l i{width:40px;height:33px;}
+.pin-txt{flex:1;min-width:0;}
+.pin-txt b{display:block;font-size:14.5px;font-weight:600;color:var(--ink);}
+.pin-txt span{display:block;font-size:12px;color:var(--ink-3);margin-top:2px;}
+/* 「已添加」只是状态标签，不是可点的选框——点整行即添加 */
+.pin-badge{
+  flex:0 0 auto;font-size:11.5px;font-weight:600;color:var(--primary);
+  background:var(--primary-weak);border-radius:8px;padding:3px 8px;display:none;
+}
+.pin-opt.done .pin-badge{display:block;}
+.pin-note{margin:12px 2px 0;font-size:11.5px;color:var(--ink-3);line-height:1.75;text-align:justify;}
+.pin-note .pin-set{color:var(--primary);font-weight:600;white-space:nowrap;}
+.pin-cancel{
+  width:100%;height:46px;margin-top:10px;border:none;border-radius:14px;cursor:pointer;
+  background:var(--surface-2);color:var(--ink-2);font-size:15px;font-weight:500;
+}
+.pin-cancel:active{background:var(--surface-3);}
+.pin-entry,.pin-opt,.pin-cancel{font-family:inherit;}
+
+/* ================= 选择器 ================= */
+.picker-search{padding:6px 16px 10px;position:sticky;top:0;background:rgba(243,244,246,.92);backdrop-filter:blur(14px);z-index:10;}
+.search-box{
+  display:flex;align-items:center;gap:8px;background:var(--surface-2);border-radius:13px;
+  padding:0 13px;height:44px;transition:background .2s var(--ease),box-shadow .2s var(--ease);
+}
+.search-box:focus-within{background:#fff;box-shadow:0 0 0 2px var(--primary);}
+.search-box svg{flex:0 0 auto;color:var(--ink-3);}
+.search-box input{
+  flex:1;border:none;background:none;outline:none;font-size:15px;color:var(--ink);height:100%;
+}
+.search-box input::placeholder{color:var(--ink-3);}
+.search-clear{background:none;border:none;color:var(--ink-3);font-size:15px;width:28px;height:28px;border-radius:50%;}
+.search-clear:active{background:var(--surface-3);}
+.line-tabs{display:flex;gap:8px;overflow-x:auto;padding:2px 16px 12px;scrollbar-width:none;position:sticky;top:56px;background:rgba(243,244,246,.92);backdrop-filter:blur(14px);z-index:9;}
+.line-tabs::-webkit-scrollbar{display:none;}
+.line-tab{
+  flex:0 0 auto;border:1px solid var(--line);background:var(--surface);color:var(--ink-2);
+  border-radius:20px;padding:7px 14px;font-size:13px;cursor:pointer;white-space:nowrap;
+  transition:all .18s var(--ease);font-weight:500;
+}
+.line-tab.active{color:#fff;border-color:transparent;font-weight:600;box-shadow:0 3px 10px rgba(22,26,36,.14);}
+.picker-body{padding:2px 16px 110px;}
+.line-group{margin-bottom:20px;}
+.line-group-head{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;margin-bottom:10px;padding-left:2px;}
+.line-dot{width:12px;height:12px;border-radius:4px;flex:0 0 auto;}
+.station-chip{
+  display:inline-flex;align-items:center;background:var(--surface);border-radius:11px;
+  padding:10px 14px;margin:0 8px 8px 0;font-size:14.5px;box-shadow:0 1px 2px rgba(22,26,36,.05);
+  cursor:pointer;transition:transform .12s var(--ease),background .15s var(--ease);
+}
+.station-chip:active{transform:scale(.96);background:var(--surface-2);}
+.station-chip.faved::after{content:"★";color:#E8A33D;font-size:11.5px;margin-left:5px;}
+
+/* ================= 详情 ================= */
+.station-head{padding:16px 20px 4px;}
+.station-title{display:flex;align-items:center;gap:8px;font-size:24px;font-weight:800;letter-spacing:-.01em;}
+.station-title .star{
+  font-size:25px;color:#C9CFDB;background:none;border:none;padding:6px;cursor:pointer;line-height:1;
+  transition:transform .2s var(--spring);margin-left:2px;
+}
+.station-title .star.on{color:#E8A33D;}
+.station-title .star.pop{animation:starPop .35s var(--spring);}
+@keyframes starPop{0%{transform:scale(1)}40%{transform:scale(1.35)}100%{transform:scale(1)}}
+.station-sub{color:var(--ink-3);font-size:12.5px;margin:4px 4px 12px;}
+.filter-bar{
+  display:none;align-items:center;gap:8px;background:var(--primary-weak);color:var(--primary);
+  border-radius:var(--radius-md);padding:10px 13px;font-size:13px;margin:0 4px 14px;
+}
+.filter-bar.show{display:flex;animation:fadeUp .25s var(--ease) both;}
+.filter-bar .clr{margin-left:auto;font-weight:600;text-decoration:underline;}
+.dir-list{padding:6px 16px 110px;display:flex;flex-direction:column;gap:14px;}
+.dir-card{
+  background:var(--surface);border-radius:var(--radius-xl);box-shadow:var(--shadow-1);
+  overflow:hidden;animation:fadeUp .4s var(--ease) both;position:relative;
+}
+.dir-card .accent{position:absolute;left:0;top:0;bottom:0;width:4px;}
+.dir-card-body{padding:15px 17px 17px;}
+.dir-head{display:flex;align-items:center;gap:9px;padding:15px 17px 0;}
+.line-badge{
+  color:#fff;font-size:12.5px;font-weight:700;border-radius:7px;padding:3.5px 9px;letter-spacing:.02em;
+}
+.dir-name{font-size:14.5px;font-weight:600;color:var(--ink);}
+.dir-sub{font-size:12.5px;color:var(--ink-3);padding:6px 17px 0;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.dir-sub .sep{color:#c8cfdb;}
+.dir-sub b{color:var(--primary);font-weight:600;}
+.dir-star{
+  flex:0 0 auto;background:none;border:none;color:#C9CFDB;font-size:19px;width:36px;height:36px;
+  border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;margin-left:auto;
+  transition:color .15s var(--ease),background .15s var(--ease),transform .2s var(--spring);
+}
+.dir-star.on{color:#E8A33D;}
+.dir-star:active{transform:scale(.85);}
+.countdown{text-align:center;padding:16px 0 4px;position:relative;}
+.countdown .label{font-size:12px;color:var(--ink-3);letter-spacing:.12em;margin-bottom:7px;}
+.countdown .big{font-size:37px;font-weight:800;letter-spacing:.5px;}
+.countdown .big .unit{font-size:15px;font-weight:600;color:var(--ink-2);margin:0 3px;letter-spacing:0;}
+.countdown .status{font-size:14px;color:var(--danger);font-weight:600;margin-top:6px;}
+.countdown .status.warn{color:#D98B22;}
+.next-list{margin-top:13px;border-top:1px solid var(--line);padding-top:11px;}
+.nl-title{font-size:11.5px;color:var(--ink-3);letter-spacing:.1em;margin-bottom:5px;}
+.next-row{display:flex;align-items:center;gap:9px;padding:6px 9px;font-size:14.5px;border-radius:10px;margin:1px -9px;}
+.next-row.cur{background:var(--primary-weak);}
+.next-row .t{font-weight:700;min-width:50px;}
+.next-row .tag{font-size:10.5px;background:var(--primary);color:#fff;border-radius:5px;padding:1.5px 7px;font-weight:600;}
+.next-row .tag.next-day{background:#7B61FF;}
+.next-row .sub{font-size:12px;color:var(--ink-3);margin-left:auto;}
+.show-all{
+  width:100%;margin-top:13px;background:var(--surface-2);border:none;color:var(--primary);
+  border-radius:11px;padding:10px;font-size:13.5px;font-weight:600;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:5px;
+  transition:background .15s var(--ease);
+}
+.show-all:active{background:var(--surface-3);}
+.show-all .chev{transition:transform .25s var(--ease);font-size:11px;}
+.show-all.open .chev{transform:rotate(180deg);}
+.all-block{margin-top:14px;}
+.all-title{font-size:12px;color:var(--ink-3);font-weight:600;margin-bottom:8px;}
+.all-grid{display:flex;flex-wrap:wrap;gap:6px;padding:2px;}
+.at-chip{
+  background:var(--surface-2);border-radius:8px;padding:4.5px 9px;font-size:12.5px;
+  color:var(--ink);flex:0 0 auto;
+}
+.at-chip.nd{background:#F0ECFF;color:#7B61FF;}
+.at-chip.cur{background:var(--primary);color:#fff;font-weight:700;}
+.at-chip.cur.nd{background:#7B61FF;color:#fff;}
+.at-chip i{font-style:normal;font-size:10px;color:#A39AD6;margin-left:2px;}
+.at-chip.cur i{color:#dcd2ff;}
+.at-chip i.term{color:var(--ink-3);margin-left:3px;font-size:10px;}
+.at-chip.cur i.term{color:#dce4f5;}
+.cd-term{font-size:13px;color:#C2410C;font-weight:600;margin-top:6px;display:flex;flex-wrap:wrap;gap:5px;justify-content:center;}
+.cd-term .mk{background:#FFF1E6;color:#C2410C;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600;}
+.cd-term .mk.ended{background:#F0F2F6;color:var(--ink-3);}
+.next-row .tag.mk{background:#FFF1E6;color:#C2410C;margin-left:4px;}
+.first-last{display:flex;gap:9px;margin-top:13px;}
+.fl-item{flex:1;background:var(--surface-2);border-radius:12px;padding:9px 10px;text-align:center;}
+.fl-item .k{font-size:11px;color:var(--ink-3);}
+.fl-item .v{font-size:15px;font-weight:700;margin-top:3px;}
+.fl-item .v small{font-size:11px;font-weight:400;color:var(--ink-3);margin-left:2px;}
+.data-note{color:var(--ink-3);font-size:11px;text-align:center;padding:14px 32px 10px;line-height:1.9;}
+
+/* 返回顶部 */
+#backTop{
+  position:fixed;right:18px;bottom:96px;z-index:30;background:var(--surface);
+  box-shadow:var(--shadow-1);border-radius:50%;width:44px;height:44px;border:none;
+  font-size:17px;color:var(--ink-2);display:flex;align-items:center;justify-content:center;
+  transition:transform .15s var(--ease);cursor:pointer;
+}
+#backTop:active{transform:scale(.92);}
+
+.clr-all{background:none;border:none;color:var(--danger);font-size:12.5px;font-weight:600;padding:6px 8px;border-radius:8px;transition:background .15s var(--ease);}
+.clr-all:active{background:#FDECEC;}
+
+/* ================= 删除确认弹层 ================= */
+.mask{
+  position:fixed;inset:0;background:rgba(16,19,28,.45);z-index:60;
+  opacity:0;transition:opacity .22s var(--ease);pointer-events:none;
+}
+.mask.show{opacity:1;pointer-events:auto;}
+.sheet{
+  position:fixed;left:50%;transform:translateX(-50%) translateY(110%);bottom:0;width:100%;max-width:520px;
+  background:var(--surface);border-radius:24px 24px 0 0;z-index:61;padding:10px 16px calc(16px + env(safe-area-inset-bottom));
+  transition:transform .3s var(--ease);
+  box-shadow:0 -8px 40px rgba(16,19,28,.18);
+}
+.sheet.show{transform:translateX(-50%) translateY(0);}
+.sheet .grip{width:38px;height:4.5px;border-radius:3px;background:var(--surface-3);margin:4px auto 14px;}
+.sheet-title{font-size:16px;font-weight:700;text-align:center;margin-bottom:4px;}
+.sheet-sub{font-size:13px;color:var(--ink-3);text-align:center;margin-bottom:16px;}
+.sheet .sb{height:50px;border:none;border-radius:14px;font-size:15.5px;font-weight:600;width:100%;cursor:pointer;transition:background .15s var(--ease);}
+.sheet .sb-del{background:#FDECEC;color:var(--danger);margin-bottom:9px;}
+.sheet .sb-del:active{background:#FADADA;}
+.sheet .sb.primary{background:var(--primary);color:#fff;}
+.sheet .sb.primary:active{background:var(--primary-deep);}
+.sheet .sb-cancel{background:var(--surface-2);color:var(--ink);}
+.sheet .sb-cancel:active{background:var(--surface-3);}
+
+/* Toast */
+#toast{
+  position:fixed;top:18px;left:50%;transform:translateX(-50%) translateY(-70px);z-index:80;
+  background:rgba(22,26,36,.92);color:#fff;font-size:13.5px;padding:10px 20px;border-radius:22px;
+  transition:transform .32s var(--spring);pointer-events:none;
+  white-space:normal;max-width:86vw;text-align:center;line-height:1.55;
+}
+#toast.show{transform:translateX(-50%) translateY(0);}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ============ 首页 ============ -->
+  <section id="view-home" class="view active">
+    <div class="clock-card">
+      <div class="clock-top">
+        <span class="clock-date num" id="homeDate">—</span>
+        <span class="clock-type" id="homeType">—</span>
+      </div>
+      <div class="clock-main num">
+        <span class="clock-time" id="homeHM">--:--</span><span class="clock-sec" id="homeS">:--</span>
+      </div>
+      <div class="clock-foot">
+        <span>收藏 <b id="homeFavCnt">0</b> 站</span>
+        <span>·</span>
+        <button class="upd-btn" id="updBtn">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6"/></svg>
+          <span>数据更新 <b id="homeDataDate">—</b></span>
+          <span class="dot"></span>
+        </button>
+      </div>
+    </div>
+    <div class="home-body">
+      <div class="sec-head"><span class="t">我的站点</span><button class="fav-done" id="btnFavDone">完成</button><button class="clr-all" id="btnClearAll" style="display:none;">清空全部</button></div>
+      <div class="fav-list" id="favList"></div>
+      <div class="fav-hint" id="favHint" style="display:none;">长按卡片可拖动排序或删除</div>
+      <div class="empty-tip" id="favEmpty" style="display:none;">
+        <span class="glyph">🚇</span>
+        还没有收藏站点<br>点下方按钮，选个常坐的站吧
+      </div>
+    </div>
+    <div class="bottom-bar">
+      <button class="main-btn" id="btnPick"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>选择站点</button>
+      <!-- 仅 App 内显示（init 里检测 window.MetroWidget 后加 .show） -->
+      <button class="pin-entry" id="btnPin">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg>
+        添加到桌面
+      </button>
+    </div>
+  </section>
+
+  <!-- ============ 选择器 ============ -->
+  <section id="view-picker" class="view">
+    <div class="topbar">
+      <button class="ibtn" id="btnBackPicker">‹</button>
+      <div class="title">选择站点</div>
+      <span style="width:44px"></span>
+    </div>
+    <div class="picker-search">
+      <div class="search-box">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <input id="searchInput" type="search" placeholder="搜索站名或拼音首字母">
+        <button class="search-clear" id="searchClear" style="display:none;">✕</button>
+      </div>
+    </div>
+    <div class="line-tabs" id="lineTabs"></div>
+    <div class="picker-body" id="pickerBody"></div>
+  </section>
+
+  <!-- ============ 站点详情 ============ -->
+  <section id="view-station" class="view">
+    <div class="topbar">
+      <button class="ibtn" id="btnBackStation">‹</button>
+      <div class="title">时刻表</div>
+      <button class="ibtn" id="btnStar" style="font-size:22px;color:#C9CFDB;">☆</button>
+    </div>
+    <div class="station-head">
+      <div class="station-title"><span id="stName">—</span><button class="star" id="stStar">☆</button></div>
+      <div class="station-sub" id="stSub"></div>
+      <div class="filter-bar" id="filterBar">
+        <span id="filterText"></span>
+        <span class="clr" id="filterClear">查看全部方向</span>
+      </div>
+    </div>
+    <div class="dir-list" id="dirList"></div>
+    <button id="backTop" style="display:none;">↑</button>
+    <div class="data-note" id="dataNote"></div>
+  </section>
+
+</div>
+
+<!-- 删除确认弹层 -->
+<div class="mask" id="sheetMask"></div>
+<div class="sheet" id="sheet">
+  <div class="grip"></div>
+  <div class="sheet-title" id="sheetTitle">删除收藏？</div>
+  <div class="sheet-sub" id="sheetSub">—</div>
+  <button class="sb sb-del" id="sheetDel">删除收藏</button>
+  <button class="sb sb-cancel" id="sheetCancel">取消</button>
+</div>
+<!-- 添加到桌面：尺寸选择弹层（仅 App 内使用，init 里检测桥接后才绑定事件） -->
+<div class="pin-mask" id="pinMask"></div>
+<div class="pin-sheet" id="pinSheet">
+  <div class="pin-grip"></div>
+  <div class="pin-title">添加到桌面</div>
+  <div class="pin-sub">点击尺寸即可添加，之后可长按挪位置</div>
+  <div class="pin-opts">
+    <button class="pin-opt" data-size="small">
+      <span class="pin-thumb s"><i></i></span>
+      <span class="pin-txt"><b>小（2×2）</b><span>1 个站点 · 最近 3 班</span></span>
+      <span class="pin-badge">已添加</span>
+    </button>
+    <button class="pin-opt" data-size="medium">
+      <span class="pin-thumb m"><i></i></span>
+      <span class="pin-txt"><b>中（4×2）</b><span>3 个站点 · 倒计时</span></span>
+      <span class="pin-badge">已添加</span>
+    </button>
+    <button class="pin-opt" data-size="large">
+      <span class="pin-thumb l"><i></i></span>
+      <span class="pin-txt"><b>大（4×4）</b><span>6 个站点 · 倒计时</span></span>
+      <span class="pin-badge">已添加</span>
+    </button>
+  </div>
+  <div class="pin-note">点尺寸添加没反应，多为「桌面快捷方式」权限未开启，<a class="pin-set" id="pinPerm" href="javascript:void(0)">去开启 →</a><br>或回桌面长按空白处 → 「添加小部件」→ 找到「地铁时刻」。建议把省电策略设为「无限制」并开启自启动，小部件才能持续刷新。</div>
+  <button class="pin-cancel" id="pinCancel">取消</button>
+</div>
+<div id="toast"></div>
+
+<script id="metro-data" type="application/json">__DATA__</script>
+<script>
+"use strict";
+/* ================= 数据 ================= */
+var DATA_FORMAT = 2;   // 数据格式版本：g 存 delta（前端加载后展开）
+/* 展开所有 rec.g 的 delta schedule 为完整时刻数组（幂等，已展开的数字数组跳过） */
+function expandDataG(d){
+  var sts = d && d.stations;
+  if (!sts) return d;
+  for (var st in sts){
+    var recs = sts[st];
+    for (var i=0;i<recs.length;i++){
+      var rec = recs[i], g = rec.g;
+      if (g) for (var gi=0;gi<g.length;gi++){
+        var grp = g[gi];
+        if (Array.isArray(grp) && grp.length && typeof grp[0] === "number") continue;  // 已展开，跳过
+        g[gi] = expandSchedule(grp);
+      }
+      // 被跳站：从发车时刻里排除快车经过时刻
+      if (rec.xr){
+        for (var gi2=0;gi2<rec.xr.length;gi2++){
+          var ex = rec.xr[gi2];
+          if (ex && ex.length && g && g[gi2]){
+            var keep = [], exset = {};
+            for (var e=0;e<ex.length;e++) exset[ex[e]] = 1;
+            for (var k2=0;k2<g[gi2].length;k2++) if (!exset[g[gi2][k2]]) keep.push(g[gi2][k2]);
+            g[gi2] = keep;
+          }
+        }
+      }
+      // 区间车终点 / 始发站 / 快车：转成每组的 {时刻: 属性} 映射
+      rec._term = rec.xt ? rec.xt.map(grpMap) : null;
+      rec._start = rec.xs ? rec.xs.map(grpMap) : null;
+      rec._fast = rec.xf ? rec.xf.map(grpMap) : null;
+    }
+  }
+  return d;
+}
+function grpMap(grp){
+  if (!grp) return null;
+  var m = {};
+  for (var term in grp){ for (var k=0;k<grp[term].length;k++) m[grp[term][k]] = term; }
+  return m;
+}
+function loadBestData(){
+  var builtin = null;
+  var el = document.getElementById("metro-data");
+  try { builtin = JSON.parse(el.textContent); }
+  catch(e){}
+  if (!builtin) builtin = { meta:{}, lines:{}, stations:{}, initial:{} };
+  // 新格式（delta）展开一次；随后释放内嵌数据文本（刷新时 HTML 重新解析会恢复）
+  if (builtin.meta && builtin.meta.fmt === DATA_FORMAT) expandDataG(builtin);
+  try { el.textContent = ""; } catch(e){}
+  // localStorage 中自助更新的新数据优先（格式匹配 + bjSha 与内置不同）
+  try {
+    var cached = JSON.parse(localStorage.getItem("bjmetro_data") || "null");
+    if (cached && cached.meta && cached.meta.fmt === DATA_FORMAT && builtin.meta.bjSha
+        && String(cached.meta.bjSha) !== String(builtin.meta.bjSha)){
+      expandDataG(cached);
+      return cached;
+    }
+  } catch(e){}
+  return builtin;
+}
+var DATA = loadBestData();
+var LINES = DATA.lines || {}, STATIONS = DATA.stations || {}, INITIAL = DATA.initial || {}, META = DATA.meta || {}, LINE_ORDER = DATA.lineOrder || {};
+
+/* ================= 状态 ================= */
+var favs = {};
+try { favs = JSON.parse(localStorage.getItem("bjmetro_favs") || "{}"); } catch(e){}
+var lastStation = localStorage.getItem("bjmetro_last") || "";
+var curStation = null, curFilter = null;      // curFilter: {l,d} 或 null
+var expandedAll = {}, lastNextIdx = {};
+var renderRecs = [];
+
+/* ================= 自助更新：前端解析 GitHub json5 源数据 ================= */
+var SRC_FILES = [
+  "capital-airport-express.json5","changping-line.json5","daxing-airport-express.json5",
+  "fangshan-line.json5","line-s1.json5","line1.json5","line10.json5","line11.json5",
+  "line12.json5","line13.json5","line14.json5","line15.json5","line16.json5","line17.json5",
+  "line18.json5","line19.json5","line2.json5","line3.json5","line4.json5","line5.json5",
+  "line6.json5","line7.json5","line8.json5","line9.json5","xijiao-line.json5",
+  "yanfang-line.json5","yizhuang-line.json5","yizhuang-t1-line.json5"
+];
+var SRC_MIRRORS = [
+  "https://gh-proxy.com/https://raw.githubusercontent.com/Mick235711/Beijing-Subway-Tools/main/data/beijing/",
+  "https://ghfast.top/https://raw.githubusercontent.com/Mick235711/Beijing-Subway-Tools/main/data/beijing/",
+  "https://raw.githubusercontent.com/Mick235711/Beijing-Subway-Tools/main/data/beijing/",
+  "https://api.github.com/repos/Mick235711/Beijing-Subway-Tools/contents/data/beijing/"
+];
+var updating = false, pendingBjSha = "", pendingBjDate = "";
+
+/* 下载源文件：依次尝试镜像链（gh-proxy → ghfast → GitHub raw → GitHub API），单文件独立回退 */
+function fetchSource(f, timeoutMs){
+  var idx = 0;
+  function tryNext(){
+    if (idx >= SRC_MIRRORS.length) return Promise.reject(new Error(f + " 所有源均不可用"));
+    var url = SRC_MIRRORS[idx];
+    var isApi = url.indexOf("api.github.com") >= 0;
+    idx++;
+    var opts = isApi ? {headers:{"Accept":"application/vnd.github.raw"}} : {};
+    var timer = null;
+    if (timeoutMs){
+      try {
+        var ctrl = new AbortController();
+        timer = setTimeout(function(){ try{ ctrl.abort(); }catch(e){} }, timeoutMs);
+        opts.signal = ctrl.signal;
+      } catch(e){}
+    }
+    return fetch(url + f, opts).then(function(r){
+      if (timer) clearTimeout(timer);
+      if (r.ok) return r.text();
+      return tryNext();
+    }).catch(function(){
+      if (timer) clearTimeout(timer);
+      return tryNext();
+    });
+  }
+  return tryNext();
+}
+
+/* 轻量 json5 解析：支持行/块注释、未加引号的 key、单引号字符串、尾逗号 */
+function parseJSON5(text){
+  var out = "", i = 0, inStr = false, strCh = "";
+  while (i < text.length){
+    var ch = text.charAt(i);
+    if (inStr){
+      if (ch === "\\"){ out += ch + (text.charAt(i+1)||""); i += 2; continue; }
+      out += ch;
+      if (ch === strCh) inStr = false;
+      i++; continue;
+    }
+    if (ch === '"' || ch === "'"){ inStr = true; strCh = ch; out += '"'; i++; continue; }
+    if (ch === "/" && text.charAt(i+1) === "/"){ while (i < text.length && text.charAt(i) !== "\n") i++; continue; }
+    if (ch === "/" && text.charAt(i+1) === "*"){ i += 2; while (i < text.length && !(text.charAt(i) === "*" && text.charAt(i+1) === "/")) i++; i += 2; continue; }
+    if (/[A-Za-z_$]/.test(ch)){
+      var j = i;
+      while (j < text.length && /[\w$]/.test(text.charAt(j))) j++;
+      var k = j; while (k < text.length && /\s/.test(text.charAt(k))) k++;
+      if (text.charAt(k) === ":"){ out += '"' + text.slice(i, j) + '"'; i = j; continue; }
+      out += text.slice(i, j); i = j; continue;
+    }
+    out += ch; i++;
+  }
+  out = out.replace(/,\s*([}\]])/g, "$1");
+  return JSON.parse(out);
+}
+function toMin(hhmm){
+  var m = /(\d{1,2}):(\d{2})/.exec(String(hhmm));
+  if (!m) return null;
+  return parseInt(m[1],10)*60 + parseInt(m[2],10);
+}
+function expandDelta(arr){
+  var out = [];
+  for (var i=0;i<arr.length;i++){
+    var item = arr[i];
+    if (typeof item === "number") out.push(item);
+    else if (Array.isArray(item) && item.length===2 && typeof item[0]==="number" && Array.isArray(item[1])){
+      for (var r=0;r<item[0];r++) out = out.concat(expandDelta(item[1]));
+    }
+  }
+  return out;
+}
+function expandSchedule(schedules){
+  var times = [];
+  for (var si=0; si<(schedules||[]).length; si++){
+    var seg = schedules[si];
+    if (!seg || typeof seg !== "object") continue;
+    if (Array.isArray(seg.trains)){
+      for (var ti=0;ti<seg.trains.length;ti++){
+        var m1 = toMin(seg.trains[ti]);
+        if (m1 != null) times.push(m1);
+      }
+    } else if (seg.first_train){
+      var cur = toMin(seg.first_train);
+      if (cur == null) continue;
+      times.push(cur);
+      var ds = expandDelta(seg.delta || []);
+      for (var di=0;di<ds.length;di++){ cur += ds[di]; times.push(cur); }
+    }
+  }
+  var seen = {}, out = [];
+  for (var i=0;i<times.length;i++){
+    var v = times[i] < 270 ? times[i]+1440 : times[i];   // 先做凌晨 +1440 映射
+    if (!seen[v]){ seen[v] = 1; out.push(v); }
+  }
+  out.sort(function(a,b){return a-b;});                   // 再排序（与 Python 一致）
+  return out;
+}
+function filterTime(hhmm){
+  var m = toMin(hhmm);
+  if (m == null) return null;
+  return m < 270 ? m+1440 : m;
+}
+function filterHits(times, f){
+  var hits = [];
+  if (Array.isArray(f.trains)){
+    for (var ti=0;ti<f.trains.length;ti++){
+      var m = filterTime(f.trains[ti]);
+      if (m != null) hits.push(m);
+    }
+    return hits;
+  }
+  var ft = filterTime(f.first_train);
+  var step = (f.skip_trains || 0) + 1;
+  var cnt = f.count;
+  var until = filterTime(f.until);
+  var start = 0;
+  if (ft != null){
+    var idx = times.indexOf(ft);
+    if (idx >= 0) start = idx;
+    else { for (var s=0;s<times.length;s++){ if (times[s] >= ft){ start = s; break; } if (s === times.length-1) start = times.length; } }
+  }
+  var i = start;
+  while (i < times.length){
+    var t = times[i];
+    if (until != null && t > until) break;
+    hits.push(t);
+    if (cnt != null && hits.length >= cnt) break;
+    i += step;
+  }
+  return hits;
+}
+/* 按 schedule filter 语义标记班次属性（与 Python apply_filters 一致），返回 {term, start, fast, exclude} */
+function applyFilters(times, filters, routes, station){
+  var term = {}, start = {}, fast = {}, exclude = [], tset = {};
+  for (var i=0;i<times.length;i++) tset[times[i]] = 1;
+  for (var fi=0; fi<(filters||[]).length; fi++){
+    var f = filters[fi];
+    if (!f || typeof f !== "object") continue;
+    var route = (routes && routes[f.plan]) || {};
+    var termName = route.ends_with;
+    var startName = route.starts_with;
+    var skipList = route.skip;
+    var isFast = Array.isArray(skipList) && skipList.length > 0;
+    var hits = filterHits(times, f);
+    for (var hi=0;hi<hits.length;hi++){
+      var t = hits[hi];
+      if (!tset[t]) continue;
+      if (isFast){
+        if (skipList.indexOf(station) >= 0){ exclude.push(t); continue; }   // 被跳站：快车经过不停
+        fast[t] = f.plan;
+      }
+      if (startName) start[t] = startName;
+      if (termName) term[t] = termName;
+    }
+  }
+  exclude.sort(function(a,b){return a-b;});
+  return {term: term, start: start, fast: fast, exclude: exclude};
+}
+function invertMap(m){
+  var out = {};
+  for (var t in m){ (out[m[t]] = out[m[t]] || []).push(parseInt(t,10)); }
+  for (var v in out) out[v].sort(function(a,b){return a-b;});
+  return Object.keys(out).length ? out : null;
+}
+function cleanName(name){
+  return String(name).replace(/[（(][^）)]*[）)]$/,"").trim();
+}
+function lineSortKey(name){
+  var m = /^(\d+)号线$/.exec(name);
+  if (m) return [0, parseInt(m[1],10)];
+  var order = {"S1线":1,"昌平线":2,"房山线":3,"燕房线":4,"亦庄线":5,"亦庄T1线":6,"西郊线":7,"首都机场线":8,"大兴机场线":9};
+  return [1, order[name] || 99];
+}
+function lineColorOf(d){
+  var c = d && d.color;
+  if (typeof c === "string" && c.trim()){
+    c = c.trim();
+    if (c.charAt(0) !== "#") c = "#" + c;
+    return c;
+  }
+  return "#9AA3B5";
+}
+function directionMeta(tr, direction, sn, stIdx){
+  var routings = tr && tr[direction];
+  var isLoop = false, reversed = false;
+  if (routings && typeof routings === "object"){
+    for (var rn in routings){
+      var rlow = String(rn).toLowerCase();
+      if (String(rn).indexOf("环")>=0 || rlow.indexOf("loop")>=0 || rlow.indexOf("circle")>=0){ isLoop = true; break; }
+    }
+    reversed = !!routings.reversed;
+  }
+  var n = sn.length;
+  if (isLoop){
+    return { t:"", n: sn[reversed ? (((stIdx-1)%n)+n)%n : (stIdx+1)%n] };
+  }
+  return { t: reversed ? sn[0] : sn[n-1],
+           n: reversed ? (stIdx>0 ? sn[stIdx-1] : "") : (stIdx<n-1 ? sn[stIdx+1] : "") };
+}
+/* 由 28 个 json5 文本构建完整站点索引（与 Python build_index 逻辑一致） */
+function buildDataFromSources(texts, newBjSha, newDate){
+  var lines = {}, stations = {}, fastSkip = {};
+  for (var fi=0; fi<SRC_FILES.length; fi++){
+    var d;
+    try { d = parseJSON5(texts[fi]); }
+    catch(e){ throw new Error("json5 解析失败: "+SRC_FILES[fi]); }
+    if (!d || typeof d !== "object") continue;
+    var name = d.name || SRC_FILES[fi];
+    lines[name] = lineColorOf(d);
+    var snRaw = d.station_names || (d.stations||[]).map(function(s){ return s && s.name; });
+    var sn = (snRaw||[]).map(cleanName);
+    var dg = d.date_groups || {};
+    var tr = d.train_routes || {};
+    // 收集快车跳站列表（全局）
+    for (var dr in tr){
+      var routings = tr[dr];
+      if (!routings || typeof routings !== "object") continue;
+      for (var rname in routings){
+        var r = routings[rname];
+        if (r && Array.isArray(r.skip) && r.skip.length) fastSkip[name+"|"+dr+"|"+rname] = r.skip;
+      }
+    }
+    var tt = {};
+    for (var tk in (d.timetable||{})) tt[cleanName(tk)] = d.timetable[tk];
+    for (var si=0; si<sn.length; si++){
+      var st = sn[si];
+      if (!tt[st]) continue;
+      for (var direction in tt[st]){
+        var groups = tt[st][direction];
+        if (!groups || typeof groups !== "object") continue;
+        var routes = tr && tr[direction];
+        var groupTimes = {};   // 展开结果（去重 key）
+        var groupRaw = {};     // 原始 delta schedule（存储）
+        var groupTerm = {};    // {gname: {时刻: 终点站}} 区间车
+        var groupStart = {};   // {gname: {时刻: 始发站}} 始发车
+        var groupFast = {};    // {gname: {时刻: 快车名}} 快车
+        var groupExcl = {};    // {gname: [排除时刻]} 被跳站快车
+        for (var gname in groups){
+          var gd = groups[gname];
+          if (!gd || typeof gd !== "object") continue;
+          var arr = expandSchedule(gd.schedule);
+          if (arr && arr.length){
+            groupTimes[gname] = arr;
+            groupRaw[gname] = gd.schedule;
+            var af = applyFilters(arr, gd.filters, routes, st);
+            groupTerm[gname] = af.term;
+            groupStart[gname] = af.start;
+            groupFast[gname] = af.fast;
+            groupExcl[gname] = af.exclude;
+          }
+        }
+        if (!Object.keys(groupTimes).length) continue;
+        var gnames = Object.keys(groups);
+        var uniq = [], idxMap = {}, gl = [], xt = [], xs = [], xf = [], xr = [];
+        for (var g2=0; g2<gnames.length; g2++){
+          var gn = gnames[g2], key = (groupTimes[gn]||[]).join(",");
+          if (!key) continue;
+          if (!(key in idxMap)){
+            idxMap[key] = uniq.length; uniq.push(groupRaw[gn]); gl.push(gn);
+            xt.push(invertMap(groupTerm[gn]));
+            xs.push(invertMap(groupStart[gn]));
+            xf.push(invertMap(groupFast[gn]));
+            xr.push((groupExcl[gn] && groupExcl[gn].length) ? groupExcl[gn] : null);
+          }
+        }
+        if (!uniq.length) continue;
+        var dow = "";
+        for (var day=1; day<=7; day++){
+          var gIdx = 0;
+          for (var g3=0; g3<gnames.length; g3++){
+            var gd2 = dg[gnames[g3]];
+            var wds = gd2 && Array.isArray(gd2.weekday) ? gd2.weekday : [];
+            if (wds.indexOf(day) >= 0){ gIdx = idxMap[(groupTimes[gnames[g3]]||[]).join(",")] || 0; break; }
+          }
+          dow += String(gIdx);
+        }
+        var dm = directionMeta(tr, direction, sn, si);
+        var recs = stations[st] || (stations[st] = []);
+        var rec = {l:name, d:direction, t:dm.t, n:dm.n, g:uniq, gl:gl, dow:dow};
+        for (var xi=0;xi<xt.length;xi++){ if (xt[xi]){ rec.xt = xt; break; } }
+        for (var xj=0;xj<xs.length;xj++){ if (xs[xj]){ rec.xs = xs; break; } }
+        for (var xk=0;xk<xf.length;xk++){ if (xf[xk]){ rec.xf = xf; break; } }
+        for (var xl=0;xl<xr.length;xl++){ if (xr[xl]){ rec.xr = xr; break; } }
+        recs.push(rec);
+      }
+    }
+  }
+  var ordered = {};
+  Object.keys(lines).sort(function(a,b){
+    var ka = lineSortKey(a), kb = lineSortKey(b);
+    return (ka[0]-kb[0]) || (ka[1]-kb[1]);
+  }).forEach(function(ln){ ordered[ln] = lines[ln]; });
+  return {
+    meta: {
+      version: DATA.meta.version || "3.1",
+      fmt: DATA_FORMAT,
+      updated: newDate || "",
+      commitSha: DATA.meta.commitSha || "",
+      bjSha: newBjSha || "",
+      lines: Object.keys(ordered).length,
+      stations: Object.keys(stations).length,
+      source: "Beijing-Subway-Tools (MIT) · 网页自助更新",
+      lineAliases: DATA.meta.lineAliases || {},
+      fastSkip: fastSkip
+    },
+    lines: ordered,
+    stations: stations,
+    initial: DATA.initial || {}   // 拼音索引复用内置（新增站点降级）
+  };
+}
+
+/* ================= 工具 ================= */
+function $(id){ return document.getElementById(id); }
+function pad2(n){ return (n<10?"0":"")+n; }
+function fmtHM(m){ var r=m%1440; return pad2(Math.floor(r/60))+":"+pad2(r%60); }
+function fmtHMNextDay(m){ return m>=1440 ? {t:fmtHM(m), nd:true} : {t:fmtHM(m), nd:false}; }
+function dayType(d){ var w=d.getDay(); return (w===0||w===6)?"we":"wd"; }
+function effType(){
+  var n = new Date();
+  if (n.getHours()<4 || (n.getHours()===4 && n.getMinutes()<30)){
+    var y = new Date(n); y.setDate(y.getDate()-1); return dayType(y);
+  }
+  return dayType(n);
+}
+function nowMin(){ var n=new Date(); var m=n.getHours()*60+n.getMinutes(); return m; }
+function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+
+/* 收藏 key: 全站=站名; 方向="站||线||向" */
+function dirKey(st,l,d){ return st+"||"+l+"||"+d; }
+function isDirKey(k){ return k.indexOf("||")>=0; }
+function splitDirKey(k){ var p=k.split("||"); return {st:p[0],l:p[1],d:p[2]}; }
+
+function nextDateOf(absMin){
+  var now=new Date(), raw=absMin%1440;
+  var d=new Date(now.getFullYear(),now.getMonth(),now.getDate(),Math.floor(raw/60),raw%60,0,0);
+  if (d.getTime() < now.getTime()-60000) d=new Date(d.getTime()+86400000);
+  return d;
+}
+function calcNext(times, base){
+  for (var i=0;i<times.length;i++) if (times[i]>base) return {abs:times[i],waitSec:times[i]-base,idx:i};
+  /* 末班已过：返回次日首班（idx=-1 标记），供渲染"末班已过·距次日首班"+保留班次列表 */
+  if (times.length && base >= times[times.length-1]){
+    return {abs:times[0]+1440, waitSec:times[0]+1440-base, idx:-1, last:times[times.length-1]};
+  }
+  return null;
+}
+function curGi(rec){
+  /* 新数据格式：rec.g = [时刻数组...]（去重后的日期组），rec.dow = 7字符（周一~周日各指 g 的索引）
+     按当天星期几选择对应的日期组索引（凌晨 0:00-4:30 归入昨天） */
+  var now = new Date();
+  if (now.getHours()<4 || (now.getHours()===4 && now.getMinutes()<30)) now = new Date(now.getTime()-86400000);
+  var d = now.getDay();                 // 0=周日
+  var idx = d===0 ? 6 : d-1;            // 周一=0 ... 周日=6
+  var ch = rec.dow ? rec.dow.charAt(idx) : "0";
+  return (ch >= "0" && ch <= "9") ? parseInt(ch, 10) : 0;
+}
+function dirTimes(rec){
+  var gi = curGi(rec);
+  var arr = (rec.g && rec.g.length > gi) ? rec.g[gi] : (rec.g && rec.g[0]);
+  return arr || [];
+}
+/* 某班次的终点站：区间车返回 xt 终点，否则全程终点 */
+function termOf(rec, gi, time){
+  var tm = rec._term && rec._term[gi];
+  if (tm && tm[time] !== undefined) return tm[time];
+  return rec.t;
+}
+/* 某班次的始发站：始发车返回 xs 始发站，否则 null */
+function startOf(rec, gi, time){
+  var sm = rec._start && rec._start[gi];
+  return sm ? sm[time] : null;
+}
+/* 某班次的快车名：快车返回 xf 快车名，否则 null */
+function fastOf(rec, gi, time){
+  var fm = rec._fast && rec._fast[gi];
+  return fm ? fm[time] : null;
+}
+/* 快车跳过的站列表（从 meta.fastSkip 查） */
+function fastSkipOf(rec, fastName){
+  var fs = META && META.fastSkip;
+  return fs ? fs[rec.l+"|"+rec.d+"|"+fastName] : null;
+}
+/* 某班次的所有标记（快车/始发/区间终点），供各显示位置统一使用 */
+function marksOf(rec, gi, time){
+  var marks = [];
+  var fast = fastOf(rec, gi, time);
+  if (fast){
+    var skip = fastSkipOf(rec, fast);
+    marks.push(skip && skip.length ? ("快车·跳"+skip.length+"站") : "快车");
+  }
+  var start = startOf(rec, gi, time);
+  if (start) marks.push(start+"始发");
+  var term = termOf(rec, gi, time);
+  if (term && term !== rec.t) marks.push("区间·"+term);
+  return marks;
+}
+
+/* ================= 视图 ================= */
+function showView(id){
+  document.querySelectorAll(".view").forEach(function(v){ v.classList.remove("active"); });
+  $(id).classList.add("active");
+  window.scrollTo(0,0);
+}
+/* 导航：写入浏览器历史，使手机返回键/手势返回能逐级返回上一级 */
+function navTo(view, state){
+  try { history.pushState(state || {v:view}, ""); } catch(e){}
+  showView(view);
+}
+/* 返回键（popstate）恢复上一级视图 */
+function onPopState(st){
+  if (st.v === "station" && st.s && STATIONS[st.s]){
+    curStation = st.s;
+    curFilter = (st.l && st.d) ? {l:st.l, d:st.d} : null;
+    renderStation();
+    showView("view-station");
+  } else if (st.v === "picker"){
+    showView("view-picker");
+  } else {
+    showView("view-home");
+  }
+}
+
+/* ================= Toast ================= */
+var toastTimer = null;
+function toast(msg, ms){
+  var t = $("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  // 长文案（引导类提示）按字数拉长显示时间，1.6s 根本看不完
+  var dur = ms || Math.min(7000, Math.max(1600, 900 + msg.length * 95));
+  toastTimer = setTimeout(function(){ t.classList.remove("show"); }, dur);
+}
+
+/* ================= 弹层（删除确认 / 检查更新 / 提示） ================= */
+var pendingAction = null;    // {type:'one', key} 或 {type:'all'}
+var pressTimer = null, pressKey = null, pressFired = false;   // 长按状态（全局，便于弹层复位）
+var sheetMode = "del";       // del=删除确认 | update=检查更新确认 | info=信息提示
+var editMode = false;        // 收藏编辑态（长按进入：可拖动排序、点 X 删除）
+var drag = null;             // 拖拽状态 {card, id, startY, moved}
+var lastPointerId = null;    // 最近一次 pointerdown 的 id，用于长按后接管指针
+var lastY = 0;               // 最近一次 pointer 的 clientY（长按触发时作为拖拽起点）
+var editPushed = false;      // 进入编辑态时是否压入过历史记录（供安卓系统返回手势/返回键退出）
+var editSuppressPop = false; // 退出编辑态时主动 history.back() 引发的 popstate 不再切换视图
+function openSheet(title, sub, delText, mode){
+  sheetMode = mode || "del";
+  $("sheetTitle").textContent = title;
+  $("sheetSub").textContent = sub;
+  $("sheetDel").textContent = delText;
+  $("sheetDel").classList.toggle("primary", sheetMode !== "del");
+  $("sheetMask").classList.add("show");
+  $("sheet").classList.add("show");
+}
+function closeSheet(){
+  $("sheetMask").classList.remove("show");
+  $("sheet").classList.remove("show");
+  $("sheetDel").classList.remove("primary");
+  pressFired = false;
+  document.querySelectorAll(".fav-card.pressing").forEach(function(c){ c.classList.remove("pressing"); });
+}
+function onSheetDel(){
+  if (sheetMode === "update"){ closeSheet(); checkUpdate(); return; }
+  if (sheetMode === "doUpdate"){ closeSheet(); doUpdate(pendingBjSha, pendingBjDate); return; }
+  if (sheetMode === "dlCheck"){ closeSheet(); downloadAndCompare(); return; }
+  if (sheetMode === "info"){ closeSheet(); return; }
+  confirmDel();
+}
+function confirmDel(){
+  if (!pendingAction) return;
+  if (pendingAction.type === "all"){
+    favs = {};
+    saveFavs();
+    renderHome();
+    toast("已清空全部收藏");
+  } else {
+    toggleFav(pendingAction.key);
+    toast("已删除收藏");
+  }
+  pendingAction = null;
+  closeSheet();
+}
+
+/* ================= 手动检查更新（仅用户点击时执行） ================= */
+var checking = false;
+function checkUpdate(){
+  if (checking) return;
+  checking = true;
+  $("updBtn").classList.add("checking");
+  toast("正在检查数据更新…");
+  // 路径 A：api.github.com 精确检查（8 秒超时，国内直连失败快速降级，不等待）
+  var ctrl = null, timer = null;
+  try { ctrl = new AbortController(); timer = setTimeout(function(){ try{ ctrl.abort(); }catch(e){} }, 8000); } catch(e){}
+  var opts = {headers: {"Accept":"application/vnd.github+json"}};
+  if (ctrl) opts.signal = ctrl.signal;
+  fetch("https://api.github.com/repos/Mick235711/Beijing-Subway-Tools/commits?path=data/beijing&per_page=1", opts)
+    .then(function(r){ if (timer) clearTimeout(timer); if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(function(arr){
+      checking = false;
+      $("updBtn").classList.remove("checking");
+      localStorage.setItem("bjmetro_lastCheck", String(Date.now()));
+      $("updBtn").classList.remove("has-update");
+      var up = META.updated || "—";
+      var latest = (arr && arr[0] && arr[0].sha) || "";
+      if (latest && latest === (META.bjSha || "")){
+        toast("数据已是最新（"+up+"）");
+      } else {
+        pendingBjSha = latest;
+        pendingBjDate = ((arr && arr[0] && arr[0].commit && arr[0].commit.author && arr[0].commit.author.date) || "").slice(0,10);
+        openSheet("发现新数据", "北京地铁数据已有更新（更新于 "+(pendingBjDate||"—")+"）。当前版本 "+up+"，是否立即更新？", "立即更新", "doUpdate");
+      }
+    })
+    .catch(function(){
+      // 路径 B：API 不可用（国内直连失败/超时）→ 降级为镜像下载全量 + 内容对比
+      checking = false;
+      $("updBtn").classList.remove("checking");
+      if (timer) clearTimeout(timer);
+      openSheet("检查数据", "无法连接 GitHub API（国内网络直连限制），将改为通过镜像下载最新数据检查（约 2.5MB），确认继续？", "镜像下载检查", "dlCheck");
+    });
+}
+
+/* ================= 网页自助更新（前端下载并解析 GitHub 源数据） ================= */
+/* 下载 28 个源文件（镜像链），回调进度 */
+function downloadAll(onProgress){
+  var done = 0;
+  return Promise.all(SRC_FILES.map(function(f){
+    return fetchSource(f, 20000).then(function(t){
+      done++;
+      if (onProgress) onProgress(done, SRC_FILES.length);
+      return t;
+    });
+  }));
+}
+/* 应用新数据：缓存存 delta 原件（压缩），内存展开后替换全局并重绘 */
+function applyData(nd){
+  try { localStorage.setItem("bjmetro_data", JSON.stringify(nd)); } catch(e){}   // 存 delta 原件
+  expandDataG(nd);   // 内存展开
+  DATA = nd;
+  LINES = DATA.lines || {}; STATIONS = DATA.stations || {}; INITIAL = DATA.initial || {}; META = DATA.meta || {};
+  LINE_ORDER = DATA.lineOrder || {};   // 必须同步：否则更新后站点排序失效（回退成按站名排）
+  buildPickerIndex();
+  renderHome();
+  tickHome();
+  pushWidgetSnapshot();                // 时刻表更新 → 刷新小部件快照
+  if (curStation && STATIONS[curStation]) renderStation();
+}
+/* 单个方向组的时刻指纹（兼容 delta 与已展开两种格式） */
+function groupFP(g){
+  return (g||[]).map(function(grp){
+    if (Array.isArray(grp) && grp.length && typeof grp[0] === "number") return grp.join(",");
+    return expandSchedule(grp).join(",");
+  }).join(";");
+}
+/* 数据内容指纹（无 API 时判定是否有更新） */
+function dataFingerprint(d){
+  try {
+    var sts = d.stations, parts = [JSON.stringify(d.lines)];
+    for (var st in sts){
+      var recs = sts[st];
+      for (var i=0;i<recs.length;i++){
+        var r = recs[i];
+        parts.push(st + "|" + r.l + "|" + r.d + "|" + r.t + "|" + r.n + "|" + r.dow + "|" + groupFP(r.g));
+      }
+    }
+    return parts.join("\n");
+  } catch(e){ return ""; }
+}
+
+/* 路径 A 确认后：强制更新 */
+function doUpdate(newBjSha, newDate){
+  if (updating) return;
+  updating = true;
+  toast("正在下载数据（0/"+SRC_FILES.length+"）…");
+  downloadAll(function(done, total){
+    if (done % 4 === 0 || done === total) toast("正在下载数据（"+done+"/"+total+"）…");
+  }).then(function(texts){
+    toast("正在解析数据…");
+    var nd;
+    try { nd = buildDataFromSources(texts, newBjSha, newDate); }
+    catch(e){ updating = false; toast("更新失败："+e.message); return; }
+    applyData(nd);
+    toast("数据已更新（"+(META.updated||"")+"）");
+    updating = false;
+  }).catch(function(){
+    updating = false;
+    toast("更新失败，请检查网络后重试");
+  });
+}
+
+/* 路径 B 降级：镜像下载全量 + 解析 + 与当前数据内容对比，有差异才应用 */
+function downloadAndCompare(){
+  if (updating) return;
+  updating = true;
+  toast("正在下载数据（0/"+SRC_FILES.length+"）…");
+  downloadAll(function(done, total){
+    if (done % 4 === 0 || done === total) toast("正在下载数据（"+done+"/"+total+"）…");
+  }).then(function(texts){
+    toast("正在解析数据…");
+    var nd;
+    try { nd = buildDataFromSources(texts, "", ""); }
+    catch(e){ updating = false; toast("检查失败："+e.message); return; }
+    updating = false;
+    $("updBtn").classList.remove("checking");
+    var same = dataFingerprint(nd) === dataFingerprint(DATA);
+    if (same){
+      try { localStorage.setItem("bjmetro_lastCheck", String(Date.now())); } catch(e){}
+      toast("数据已是最新（"+(META.updated||"—")+"）");
+    } else {
+      var now = new Date();
+      nd.meta.updated = now.getFullYear()+"-"+pad2(now.getMonth()+1)+"-"+pad2(now.getDate());
+      nd.meta.bjSha = "mirror-"+nd.meta.updated;   // 唯一版本标识，确保缓存被识别（区别于内置）
+      applyData(nd);
+      toast("数据已更新（"+(META.updated||"")+"）");
+    }
+  }).catch(function(){
+    updating = false;
+    toast("下载失败，请检查网络后重试");
+  });
+}
+
+/* ================= 每周自动检查（静默，仅首页红点提示） ================= */
+var AUTO_CHECK_INTERVAL = 7 * 24 * 3600 * 1000;   // 7 天
+function autoCheckUpdate(){
+  try {
+    var last = parseInt(localStorage.getItem("bjmetro_lastCheck") || "0", 10);
+    if (Date.now() - last < AUTO_CHECK_INTERVAL) return;   // 未到一周，跳过
+  } catch(e){}
+  // 静默检查：不弹窗，只在发现新数据时亮红点（8 秒超时；失败静默，不自动下载）
+  var ctrl = null, timer = null;
+  try { ctrl = new AbortController(); timer = setTimeout(function(){ try{ ctrl.abort(); }catch(e){} }, 8000); } catch(e){}
+  var opts = {headers: {"Accept":"application/vnd.github+json"}};
+  if (ctrl) opts.signal = ctrl.signal;
+  fetch("https://api.github.com/repos/Mick235711/Beijing-Subway-Tools/commits?path=data/beijing&per_page=1", opts)
+    .then(function(r){ if (timer) clearTimeout(timer); if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(function(arr){
+      if (timer) clearTimeout(timer);
+      try { localStorage.setItem("bjmetro_lastCheck", String(Date.now())); } catch(e){}
+      var latest = (arr && arr[0] && arr[0].sha) || "";
+      if (latest && latest !== (META.bjSha || "")){
+        $("updBtn").classList.add("has-update");   // 有更新，亮红点
+      }
+    })
+    .catch(function(){ if (timer) clearTimeout(timer); /* 静默失败，下次打开页面再试 */ });
+}
+
+/* ================= 首页 ================= */
+function renderHome(){
+  var list = $("favList"), empty = $("favEmpty");
+  var keys = Object.keys(favs);
+  if (!keys.length){ editMode = false; list.innerHTML=""; empty.style.display="block"; $("favHint").style.display="none"; }
+  else { empty.style.display="none"; $("favHint").style.display="block"; }
+  $("homeFavCnt").textContent = keys.length;
+  $("btnClearAll").style.display = keys.length ? "block" : "none";
+  keys = sortFavKeys(keys);
+  var html = "";
+  for (var i=0;i<keys.length;i++){
+    var k = keys[i], delay = "animation-delay:"+(i*40)+"ms;";
+    if (isDirKey(k)){
+      var pk = splitDirKey(k), rec = null, recs = STATIONS[pk.st]||[];
+      for (var j=0;j<recs.length;j++) if (recs[j].l===pk.l && recs[j].d===pk.d){ rec=recs[j]; break; }
+      var c = LINES[pk.l] || "#9AA1AF";
+      var dirDesc = (rec && rec.t) ? "开往"+rec.t : pk.d;
+      html += '<div class="fav-card" data-key="'+esc(k)+'" data-dir="1" style="'+delay+'">'
+        + '<span class="accent" style="background:'+c+'"></span>'
+        + '<span class="fav-del" data-del="'+esc(k)+'">×</span>'
+        + '<div class="body"><div class="station-name">'+esc(pk.st)+'</div>'
+        + '<div class="fav-lines"><span class="fav-line" style="background:'+c+';width:10px;height:10px;border-radius:3px;"></span>'
+        + '<span style="font-size:12.5px;color:var(--ink-3);margin-left:4px;">'+esc(pk.l)+' · '+esc(dirDesc)+'</span></div>'
+        + '<div class="fav-time"><span class="t">--:--</span><span class="fc"></span></div></div>'
+        + '<div class="fav-cd" data-favkey="'+esc(k)+'"><span class="k">下一班</span><span class="v">—</span></div></div>';
+    } else {
+      var st = k, recs2 = STATIONS[st]||[], dots="";
+      for (var j2=0;j2<recs2.length;j2++){
+        var c2 = LINES[recs2[j2].l] || "#9AA1AF";
+        if (j2<8) dots += '<span class="fav-line" style="background:'+c2+'"></span>';
+      }
+      html += '<div class="fav-card" data-key="'+esc(st)+'" style="'+delay+'">'
+        + '<span class="accent" style="background:'+((recs2[0]&&LINES[recs2[0].l])||"#9AA1AF")+'"></span>'
+        + '<span class="fav-del" data-del="'+esc(st)+'">×</span>'
+        + '<div class="body"><div class="station-name">'+esc(st)+'</div>'
+        + '<div class="fav-lines">'+dots+'</div>'
+        + '<div class="fav-time"><span class="t">--:--</span><span class="fc"></span></div></div>'
+        + '<div class="fav-cd" data-favkey="'+esc(st)+'"><span class="k">下一班</span><span class="v">—</span></div></div>';
+    }
+  }
+  list.innerHTML = html;
+  syncEditUI();
+  tickFavNext();
+}
+
+function calcFavNext(k){
+  var recs = null;
+  if (isDirKey(k)){
+    var pk = splitDirKey(k), tmp = STATIONS[pk.st]||[];
+    for (var j=0;j<tmp.length;j++) if (tmp[j].l===pk.l && tmp[j].d===pk.d){ recs=[tmp[j]]; break; }
+  } else recs = STATIONS[k]||[];
+  if (!recs || !recs.length) return null;
+  var base = nowMin(); if (base<270) base += 1440;
+  var best = null;
+  for (var i=0;i<recs.length;i++){
+    var n = calcNext(dirTimes(recs[i]), base);
+    if (n && (!best || n.waitSec < best.n.waitSec)) best = {rec:recs[i], n:n};
+  }
+  return best;
+}
+function tickFavNext(){
+  var nodes = document.querySelectorAll(".fav-cd");
+  for (var i=0;i<nodes.length;i++){
+    var el = nodes[i], k = el.getAttribute("data-favkey");
+    var info = calcFavNext(k);
+    var card = el.parentNode;
+    var tEl = card.querySelector(".fav-time .t"), fcEl = card.querySelector(".fav-time .fc");
+    if (!info){
+      el.className = "fav-cd off";
+      el.innerHTML = '<span class="k">今日</span><span class="v">已收班</span>';
+      if (tEl) tEl.textContent = "—";
+      if (fcEl) fcEl.textContent = "";
+      continue;
+    }
+    var rec = info.rec, n = info.n, hm = fmtHMNextDay(n.abs);
+    var gi = curGi(rec);
+    /* 末班已过（idx<0）时 n.abs = 次日首班（+1440），标记需查原始时刻 */
+    var mt = (n.idx < 0) ? (n.abs - 1440) : n.abs;
+    var term = termOf(rec, gi, mt);
+    var fast = fastOf(rec, gi, mt);
+    var start = startOf(rec, gi, mt);
+    var isPartial = term && term !== rec.t;
+    var extra = [];   // 快车/始发标记（区间终点在 fc 正文里体现）
+    if (fast){
+      var skip = fastSkipOf(rec, fast);
+      extra.push(skip && skip.length ? ("快车·跳"+skip.length+"站") : "快车");
+    }
+    if (start) extra.push(start+"始发");
+    var diff = Math.max(0, nextDateOf(n.abs) - new Date());
+    var totalSec = Math.floor(diff/1000), mm = Math.floor(totalSec/60), ss = totalSec%60;
+    var waitTxt;
+    if (mm >= 60){
+      var hh = Math.floor(mm/60), rm = mm%60;
+      waitTxt = hh+'<span class="unit">小时</span>'+(rm>0?rm+'<span class="unit">分</span>':"");
+    } else {
+      waitTxt = mm>0 ? mm+'<span class="unit">分</span>'+pad2(ss)+'<span class="unit">秒</span>' : ss+'<span class="unit">秒</span>';
+    }
+    el.className = "fav-cd";
+    el.innerHTML = '<span class="k">下一班</span><span class="v">'+waitTxt+'</span>'+(hm.nd?'<span class="nd">次日 '+hm.t+'</span>':"");
+    if (tEl) tEl.textContent = hm.t;
+    if (fcEl){
+      var parts = [];
+      if (isDirKey(k)){
+        if (isPartial) parts.push("区间·"+term);
+      } else {
+        parts.push(rec.l+" · "+(isPartial ? term : (rec.t||rec.d)));
+      }
+      parts = parts.concat(extra);
+      fcEl.textContent = parts.join(" · ");
+      fcEl.style.color = (extra.length || isPartial) ? "#C2410C" : "";
+    }
+  }
+}
+function tickHome(){
+  var n = new Date();
+  $("homeHM").textContent = pad2(n.getHours())+":"+pad2(n.getMinutes());
+  $("homeS").textContent = ":"+pad2(n.getSeconds());
+  $("homeDate").textContent = (n.getMonth()+1)+"月"+n.getDate()+"日 星期"+"日一二三四五六".charAt(n.getDay());
+  $("homeType").textContent = effType()==="wd" ? "工作日" : "双休日";
+  $("homeDataDate").textContent = META.updated || "—";
+}
+
+/* ================= 选择器 ================= */
+var pickerOrder = [];
+function buildPickerIndex(){
+  pickerOrder = Object.keys(LINES);
+  var tabs = $("lineTabs");
+  var html = '<span class="line-tab active" data-line="__ALL__" style="border-color:var(--primary);color:var(--primary);">全部</span>';
+  for (var i=0;i<pickerOrder.length;i++){
+    var ln = pickerOrder[i], c = LINES[ln]||"#9AA1AF";
+    html += '<span class="line-tab" data-line="'+esc(ln)+'" style="border-color:'+c+'66;color:'+c+';">'+esc(ln)+'</span>';
+  }
+  tabs.innerHTML = html;
+  renderPicker("");
+}
+function renderPicker(kw){
+  kw = (kw||"").trim();
+  var active = document.querySelector(".line-tab.active");
+  var activeLine = active ? active.getAttribute("data-line") : "__ALL__";
+  var body = $("pickerBody");
+  var q = kw.toLowerCase(), qIsAlpha = /^[a-z ]*$/.test(q);
+  function match(st){
+    if (!q) return true;
+    if (st.indexOf(q)>=0) return true;
+    if (qIsAlpha){
+      var ini = INITIAL[st]||"";
+      if (ini.indexOf(q)>=0) return true;
+      if (ini.charAt(0)===q.charAt(0) && q.length>1) return true;
+    }
+    return false;
+  }
+  var html = "";
+  for (var li=0;li<pickerOrder.length;li++){
+    var ln = pickerOrder[li];
+    if (activeLine!=="__ALL__" && ln!==activeLine) continue;
+    var c = LINES[ln]||"#9AA1AF", names = [];
+    for (var st in STATIONS){
+      var recs = STATIONS[st];
+      for (var r=0;r<recs.length;r++) if (recs[r].l===ln){ names.push(st); break; }
+    }
+    // 按线路内真实站序排序（数据侧已用官方线路图坐标定向：东西走向自西向东，南北走向保持官方顺序）
+    // 不在顺序表中的站点（数据差异）排到末尾，并按站名兜底排序
+    var order = LINE_ORDER[ln];
+    if (order && order.length){
+      var idxOf = {};
+      for (var oi=0; oi<order.length; oi++) idxOf[order[oi]] = oi;
+      names.sort(function(a,b){
+        var ia = idxOf[a], ib = idxOf[b];
+        if (ia === undefined && ib === undefined) return a < b ? -1 : (a > b ? 1 : 0);
+        if (ia === undefined) return 1;
+        if (ib === undefined) return -1;
+        return ia - ib;
+      });
+    } else {
+      names.sort();
+    }
+    var chips = "";
+    for (var k2=0;k2<names.length;k2++){
+      if (!match(names[k2])) continue;
+      chips += '<span class="station-chip'+(favs[names[k2]]?" faved":"")+'" data-station="'+esc(names[k2])+'">'+esc(names[k2])+'</span>';
+    }
+    if (chips) html += '<div class="line-group"><div class="line-group-head"><span class="line-dot" style="background:'+c+'"></span>'+esc(ln)+'</div>'+chips+'</div>';
+  }
+  body.innerHTML = html || '<div class="empty-tip">没有找到匹配的站点</div>';
+}
+
+/* ================= 详情 ================= */
+function renderStation(){
+  var st = curStation;
+  if (!st || !STATIONS[st]) return;
+  $("stName").textContent = st;
+  var star = $("stStar");
+  star.textContent = favs[st] ? "★" : "☆";
+  star.classList.toggle("on", !!favs[st]);
+  $("btnStar").textContent = favs[st] ? "★" : "☆";
+  $("btnStar").style.color = favs[st] ? "#E8A33D" : "#C9CFDB";
+  var all = STATIONS[st];
+  var recs = curFilter ? all.filter(function(r){ return r.l===curFilter.l && r.d===curFilter.d; }) : all;
+  renderRecs = recs;
+  var fb = $("filterBar");
+  if (curFilter && recs.length){
+    fb.classList.add("show");
+    $("filterText").textContent = "当前仅显示 "+curFilter.l+" · 开往"+(recs[0].t||curFilter.d);
+  } else fb.classList.remove("show");
+  $("stSub").textContent = (curFilter?"已筛选 ":"")+recs.length+" 个方向 · 数据更新于 "+((META.updated)||"—");
+  var html = "";
+  for (var i=0;i<recs.length;i++){
+    var rec = recs[i], c = LINES[rec.l]||"#9AA1AF", dk = dirKey(st, rec.l, rec.d);
+    html += '<div class="dir-card" data-i="'+i+'" style="animation-delay:'+(i*60)+'ms;">'
+      + '<span class="accent" style="background:'+c+'"></span>'
+      + '<div class="dir-head">'
+      +   '<span class="line-badge" style="background:'+c+'">'+esc(rec.l)+'</span>'
+      +   '<span class="dir-name">'+esc(rec.d)+'</span>'
+      +   '<button class="dir-star'+(favs[dk]?" on":"")+'" data-fav="'+esc(dk)+'">'+(favs[dk]?"★":"☆")+'</button>'
+      + '</div>'
+      + '<div class="dir-sub">'
+      +   (function(){
+            var s = rec.t ? '开往 '+esc(rec.t) : '';
+            if (rec.n) s += (s ? '<span class="sep">·</span>' : '') + '下一站 <b>'+esc(rec.n)+'</b>';
+            return s;
+          })()
+      + '</div>'
+      + '<div class="dir-card-body">'
+      +   '<div class="countdown"><div class="label">下一趟列车</div>'
+      +   '<div class="big num" id="cd-'+i+'">—</div>'
+      +   '<div class="cd-term" id="cdt-'+i+'" style="display:none;"></div>'
+      +   '<div class="status" id="cdst-'+i+'" style="display:none;"></div></div>'
+      +   '<div class="next-list" id="nl-'+i+'"></div>'
+      +   '<div class="first-last">'
+      +     '<div class="fl-item"><div class="k">首班</div><div class="v num" id="fl-'+i+'">—</div></div>'
+      +     '<div class="fl-item"><div class="k">末班</div><div class="v num" id="ll-'+i+'">—</div></div>'
+      +   '</div>'
+      + '</div></div>';
+  }
+  $("dirList").innerHTML = html;
+  lastNextIdx = {}; expandedAll = {};
+  renderDirBody();
+  for (var k2=0;k2<recs.length;k2++) renderFL(recs[k2], k2);
+}
+
+function renderDirBody(){
+  var st = curStation;
+  if (!st || !STATIONS[st]) return;
+  for (var i=0;i<renderRecs.length;i++){
+    var rec = renderRecs[i], times = dirTimes(rec);
+    var gi = curGi(rec);
+    var base = nowMin(); if (base<270) base += 1440;
+    var next = calcNext(times, base);
+    var cd = $("cd-"+i), cds = $("cdst-"+i), cdt = $("cdt-"+i);
+    if (next){
+      var diff = Math.max(0, nextDateOf(next.abs) - new Date());
+      var totalSec = Math.floor(diff/1000), totalMin = Math.floor(totalSec/60), ss = totalSec%60;
+      if (next.idx < 0){
+        /* 末班已过：倒计时显示"X 小时 Y 分"（>60分时），cdt 显示末班已过标记，
+           并渲染末班附近班次 + 展开全部按钮（用户可查看完整时刻表） */
+        var hh = Math.floor(totalMin/60), mm = totalMin%60;
+        cd.innerHTML = hh > 0
+          ? hh+'<span class="unit">小时</span>'+(mm>0?mm+'<span class="unit">分</span>':"")
+          : (mm>0?mm+'<span class="unit">分</span>':'即将');
+        cds.style.display="none";
+        var lastHm = fmtHMNextDay(next.last);
+        cdt.style.display="block";
+        cdt.innerHTML = '<span class="mk ended">末班 '+esc(lastHm.t)+(lastHm.nd?'次日':'')+' 已过</span>';
+        if (lastNextIdx[i] === undefined || lastNextIdx[i]!==next.idx){
+          renderNextListEnded(rec, times, i, lastHm);
+          lastNextIdx[i] = next.idx;
+        }
+      } else {
+        cd.innerHTML = totalMin>0
+          ? totalMin+'<span class="unit">分</span>'+ss+'<span class="unit">秒</span>'
+          : ss+'<span class="unit">秒</span>';
+        cds.style.display="none";
+        var marks = marksOf(rec, gi, next.abs);
+        if (marks.length){
+          cdt.style.display="block";
+          cdt.innerHTML = marks.map(function(m){ return '<span class="mk">'+esc(m)+'</span>'; }).join(' · ');
+        } else {
+          cdt.style.display="none";
+        }
+        if (lastNextIdx[i] === undefined || lastNextIdx[i]!==next.idx){
+          renderNextList(rec, times, next, i);
+          lastNextIdx[i] = next.idx;
+        }
+      }
+    } else {
+      cd.innerHTML = "—";
+      cdt.style.display="none";
+      cds.style.display="block";
+      cds.className="status";
+      cds.textContent = "今日运营已结束";
+      if (lastNextIdx[i]!==undefined){ $("nl-"+i).innerHTML=""; lastNextIdx[i]=undefined; }
+    }
+  }
+}
+
+function allTimesHTML(times, nextAbs, rec, gi){
+  var html = "";
+  for (var i=0;i<times.length;i++){
+    var hm = fmtHMNextDay(times[i]);
+    var isCur = nextAbs != null && times[i] === nextAbs;
+    var marks = rec ? marksOf(rec, gi, times[i]) : [];
+    html += '<span class="at-chip'+(hm.nd?" nd":"")+(isCur?" cur":"")+'">'
+      + hm.t + marks.map(function(m){ return '<i class="term">'+esc(m)+'</i>'; }).join("") + (hm.nd?'<i>次日</i>':"")
+      + '</span>';
+  }
+  return html;
+}
+function renderNextList(rec, times, next, i){
+  var box = $("nl-"+i);
+  var html = '<div class="nl-title">最近班次</div>';
+  var gi = curGi(rec);
+  var cnt = 0;
+  for (var j=next.idx;j<times.length && cnt<5;j++, cnt++){
+    var hm = fmtHMNextDay(times[j]), wait = times[j]-next.abs, isCur = j===next.idx;
+    var marks = marksOf(rec, gi, times[j]);
+    var tag = isCur ? '<span class="tag">下一班</span>' : (hm.nd ? '<span class="tag next-day">次日</span>' : "");
+    for (var mk=0;mk<marks.length;mk++) tag += '<span class="tag mk">'+esc(marks[mk])+'</span>';
+    var sub = isCur ? "" : (wait<=60 ? '<span class="sub">'+wait+'分后</span>' : '<span class="sub">约'+Math.round(wait/60)+'小时后</span>');
+    html += '<div class="next-row'+(isCur?" cur":"")+'"><span class="t num">'+hm.t+'</span>'+tag+sub+'</div>';
+  }
+  var isExp = !!expandedAll[i];
+  html += '<button class="show-all'+(isExp?" open":"")+'" data-i="'+i+'">'+(isExp?"收起":"展开")+'全部班次<span class="chev">▾</span></button>';
+  if (isExp){
+    var gl = rec.gl || [];
+    for (var gIdx=0; gIdx<(rec.g||[]).length; gIdx++){
+      var arr = rec.g[gIdx];
+      var label = gl[gIdx] || ("班次 "+(gIdx+1));
+      var na = (gIdx===gi) ? next.abs : null;   // 仅当前生效组高亮下一班
+      html += '<div class="all-block"><div class="all-title">'+esc(label)+'班次 · '+arr.length+' 班</div>'
+        + '<div class="all-grid">'+allTimesHTML(arr, na, rec, gIdx)+'</div></div>';
+    }
+  }
+  box.innerHTML = html;
+}
+/* 末班已过：显示末班附近 5 班（高亮末班）+ 展开全部按钮（让用户可查看完整时刻表） */
+function renderNextListEnded(rec, times, i, lastHm){
+  var box = $("nl-"+i);
+  var html = '<div class="nl-title">末班附近班次</div>';
+  var start = Math.max(0, times.length - 5);
+  for (var j=start; j<times.length; j++){
+    var hm = fmtHMNextDay(times[j]);
+    var isCur = j === times.length-1;
+    var tag = isCur ? '<span class="tag">末班</span>' : (hm.nd ? '<span class="tag next-day">次日</span>' : '');
+    html += '<div class="next-row'+(isCur?" cur":"")+'"><span class="t num">'+hm.t+'</span>'+tag+'</div>';
+  }
+  var isExp = !!expandedAll[i];
+  html += '<button class="show-all'+(isExp?" open":"")+'" data-i="'+i+'">'+(isExp?"收起":"展开")+'全部班次<span class="chev">▾</span></button>';
+  if (isExp){
+    var gl = rec.gl || [];
+    for (var gIdx=0; gIdx<(rec.g||[]).length; gIdx++){
+      var arr = rec.g[gIdx];
+      var label = gl[gIdx] || ("班次 "+(gIdx+1));
+      html += '<div class="all-block"><div class="all-title">'+esc(label)+'班次 · '+arr.length+' 班</div>'
+        + '<div class="all-grid">'+allTimesHTML(arr, null, rec, gIdx)+'</div></div>';
+    }
+  }
+  box.innerHTML = html;
+}
+function renderFL(rec, i){
+  var times = dirTimes(rec);
+  var f = times.length ? fmtHMNextDay(times[0]) : null;
+  var l = times.length ? fmtHMNextDay(times[times.length-1]) : null;
+  $("fl-"+i).innerHTML = f ? f.t+(f.nd?'<small>次日</small>':"") : "—";
+  $("ll-"+i).innerHTML = l ? l.t+(l.nd?'<small>次日</small>':"") : "—";
+}
+
+/* ================= 收藏 ================= */
+function saveFavs(){ try{ localStorage.setItem("bjmetro_favs", JSON.stringify(favs)); }catch(e){} }
+
+/* ================= 收藏自定义顺序（拖动排序持久化） ================= */
+var FAV_ORDER_KEY = "bjmetro_fav_order";
+var favOrder = null;   // null = 尚未自定义过顺序，沿用「按收藏时间倒序」
+function loadFavOrder(){
+  try {
+    var a = JSON.parse(localStorage.getItem(FAV_ORDER_KEY) || "null");
+    favOrder = (a && a.length) ? a : null;
+  } catch(e){ favOrder = null; }
+}
+function saveFavOrder(){
+  try { localStorage.setItem(FAV_ORDER_KEY, JSON.stringify(favOrder || [])); } catch(e){}
+}
+/* 按自定义顺序排；不在顺序表里的键（新收藏/老数据）按收藏时间倒序置顶 */
+function sortFavKeys(keys){
+  if (!favOrder) return keys.slice().sort(function(a,b){ return favs[b]-favs[a]; });
+  var idx = {}, i;
+  for (i=0;i<favOrder.length;i++) idx[favOrder[i]] = i;
+  var inList = [], outList = [];
+  for (i=0;i<keys.length;i++){
+    if (idx[keys[i]] !== undefined) inList.push(keys[i]);
+    else outList.push(keys[i]);
+  }
+  inList.sort(function(a,b){ return idx[a]-idx[b]; });
+  outList.sort(function(a,b){ return favs[b]-favs[a]; });
+  return outList.concat(inList);
+}
+/* 同步编辑态的视觉（列表抖动类 + 完成按钮显隐） */
+function syncEditUI(){
+  var list = $("favList");
+  if (!list) return;
+  list.classList.toggle("editing", !!editMode);
+  var done = $("btnFavDone");
+  if (done) done.classList.toggle("show", !!editMode);
+}
+
+/* ================= 桌面小部件数据快照 =================
+   安卓桌面小部件由 RemoteViews 渲染，既不能用 WebView，也不适合读 1.1MB 全量时刻表。
+   因此在这里把「收藏站点的班次」导出成精简快照，由 App 写入内部存储供小部件读取。
+   快照只含静态班次，不含「下一班」——那随时间变化，由小部件本地计算。 */
+function buildWidgetSnapshot(){
+  try {
+    var keys = sortFavKeys(Object.keys(favs)), out = [], i, j, r;
+    for (i=0;i<keys.length;i++){
+      var k = keys[i], name = k, recs = null;
+      if (isDirKey(k)){
+        var pk = splitDirKey(k), tmp = STATIONS[pk.st] || [];
+        name = pk.st; recs = [];
+        for (j=0;j<tmp.length;j++) if (tmp[j].l === pk.l && tmp[j].d === pk.d){ recs = [tmp[j]]; break; }
+      } else recs = STATIONS[k] || [];
+      if (!recs || !recs.length) continue;
+      var items = [];
+      for (r=0;r<recs.length;r++){
+        var rec = recs[r];
+        if (!rec.g || !rec.g.length) continue;
+        /* g 是加载时已展开 delta 的完整分钟数组；dow 为周一~周日各指向 g 的索引 */
+        items.push({ l: rec.l, c: LINES[rec.l] || "#9AA1AF", t: rec.t || "", dow: rec.dow || "", g: rec.g });
+      }
+      if (items.length) out.push({ n: name, it: items });
+    }
+    return JSON.stringify({ v: 1, ts: Date.now(), f: out });
+  } catch(e){ return null; }
+}
+/* 推送给原生：安卓通过 addJavascriptInterface 注入 window.MetroWidget */
+function pushWidgetSnapshot(){
+  try {
+    if (window.MetroWidget && window.MetroWidget.onSnapshot){
+      var s = buildWidgetSnapshot();
+      if (s) window.MetroWidget.onSnapshot(s);
+    }
+  } catch(e){}
+}
+
+/* ================= 添加到桌面（仅 App 内） =================
+   桥接方法由 MainActivity 注入：
+     MetroWidget.canPinWidget()        当前桌面是否支持一键添加
+     MetroWidget.hasWidget(size)       该尺寸是否已在桌面上
+     MetroWidget.requestPinWidget(size) 发起添加，结果异步回调 window.MetroPinResult */
+var PIN_TXT = {
+  ok:"已添加到桌面",
+  canceled:"已取消添加",
+  unsupported:"当前桌面不支持应用内添加：请回到桌面，长按空白处 → 添加小部件 → 「地铁时刻」",
+  bad_size:"尺寸参数错误",
+  no_perm:"「桌面快捷方式」权限未开启，已弹出开启引导",
+  unknown:"桌面暂未响应：多为「桌面快捷方式」权限未开启（弹层里可一键跳转开启），或稍后重试；也可回桌面长按空白处手动添加"
+};
+var pinOpen = false;
+function inApp(){
+  try { return !!(window.MetroWidget && window.MetroWidget.requestPinWidget); } catch(e){ return false; }
+}
+/* 刷新各尺寸行的「已添加」状态（打开弹层时、添加成功回传后各调一次） */
+function refreshPinDone(){
+  try {
+    var opts = document.querySelectorAll(".pin-opt");
+    for (var i=0;i<opts.length;i++){
+      var sz = opts[i].getAttribute("data-size"), has = false;
+      try { has = !!window.MetroWidget.hasWidget(sz); } catch(e){}
+      opts[i].classList.toggle("done", has);
+    }
+  } catch(e){}
+}
+function openPinSheet(){
+  if (!inApp()) return;
+  refreshPinDone();
+  $("pinMask").classList.add("show");
+  $("pinSheet").classList.add("show");
+  pinOpen = true;
+  try { history.pushState({v:"__pin__"}, ""); } catch(e){}
+}
+function closePinSheet(){
+  $("pinMask").classList.remove("show");
+  $("pinSheet").classList.remove("show");
+  pinOpen = false;
+}
+/* 关闭弹层并消费掉打开时压入的历史项（避免返回键残留一次空返回） */
+function dismissPinSheet(){
+  try {
+    if (history.state && history.state.v === "__pin__"){ history.back(); return; }
+  } catch(e){}
+  closePinSheet();
+}
+/* 点整行即添加（已添加过的尺寸点击无反应——桌面不会因此多出一张重复卡片）。
+   立刻收起弹层，结果由 MetroPinResult 回调统一 toast。 */
+function doPin(size, from){
+  if (from && from.classList.contains("done")) return;   // 已添加 → 不做任何反应
+  dismissPinSheet();
+  toast("正在添加到桌面…");
+  try {
+    window.MetroWidget.requestPinWidget(size);
+  } catch(e){
+    toast("添加失败：" + (e && e.message ? e.message : e));
+  }
+}
+/* 原生回传添加结果（MainActivity.jsPinResult → evaluateJavascript） */
+window.MetroPinResult = function(ok, reason){
+  if (ok){
+    toast(PIN_TXT.ok);
+    pushWidgetSnapshot();                 // 新落地的小部件立刻拿到最新收藏
+    refreshPinDone();                     // 该尺寸行立刻标记「已添加」，防重复点击
+  } else {
+    toast(PIN_TXT[reason] || PIN_TXT.unknown);
+  }
+};
+
+function toggleFav(k){
+  if (favs[k]) delete favs[k];
+  else favs[k] = Date.now();
+  saveFavs();
+  if (favOrder){                                  // 删除时同步清理顺序表
+    var fi = favOrder.indexOf(k);
+    if (fi >= 0){ favOrder.splice(fi, 1); saveFavOrder(); }
+  }
+  pushWidgetSnapshot();                           // 收藏变了 → 刷新小部件快照
+  renderHome();
+  if (curStation===k){
+    var star=$("stStar"); star.textContent = favs[k]?"★":"☆"; star.classList.toggle("on", !!favs[k]);
+    $("btnStar").textContent = favs[k]?"★":"☆";
+    $("btnStar").style.color = favs[k] ? "#E8A33D" : "#C9CFDB";
+  }
+  if (curStation && $("view-station").classList.contains("active")) renderStation();
+  renderPicker($("searchInput").value);
+}
+
+/* ================= 事件 ================= */
+/* 收藏迁移：旧数据源线路名 → 新名（如 "4号线大兴线" → "4号线"） */
+function migrateFavs(){
+  var alias = META.lineAliases || {};
+  var changed = false, nf = {};
+  for (var k in favs){
+    var nk = k;
+    if (isDirKey(k)){
+      var p = splitDirKey(k);
+      if (alias[p.l]){ p.l = alias[p.l]; nk = dirKey(p.st, p.l, p.d); changed = true; }
+    }
+    nf[nk] = favs[k];
+  }
+  if (changed){ favs = nf; saveFavs(); }
+}
+
+function init(){
+  migrateFavs();
+  loadFavOrder();
+  buildPickerIndex();
+  renderHome();
+  tickHome();
+  pushWidgetSnapshot();
+  autoCheckUpdate();
+
+  $("btnPick").addEventListener("click", function(){ navTo("view-picker", {v:"picker"}); });
+  /* 添加到桌面：仅在 App 内且桌面支持一键添加时才显示入口 */
+  try {
+    if (inApp() && (!window.MetroWidget.canPinWidget || window.MetroWidget.canPinWidget())){
+      $("btnPin").classList.add("show");
+      document.body.classList.add("pin-shown");   // 内容区留白，避免被底部条遮挡
+      $("btnPin").addEventListener("click", openPinSheet);
+      $("pinMask").addEventListener("click", dismissPinSheet);
+      $("pinCancel").addEventListener("click", dismissPinSheet);
+      /* 「去开启」→ 系统应用详情页（开启「桌面快捷方式」权限） */
+      $("pinPerm").addEventListener("click", function(){
+        try { window.MetroWidget.openAppSettings(); } catch(e){}
+        dismissPinSheet();
+      });
+      var pops = document.querySelectorAll(".pin-opt");
+      for (var pi=0; pi<pops.length; pi++){
+        pops[pi].addEventListener("click", function(){ doPin(this.getAttribute("data-size"), this); });
+      }
+    }
+  } catch(e){}
+  $("btnBackPicker").addEventListener("click", function(){ history.back(); });
+  $("btnBackStation").addEventListener("click", function(){ history.back(); });
+
+  // 手机返回键/手势返回：恢复到上一级视图
+  window.addEventListener("popstate", function(e){
+    // 退出编辑态时我们会主动 history.back()，那次 popstate 不应再切换视图
+    if (editSuppressPop){ editSuppressPop = false; return; }
+    // 「添加到桌面」弹层打开时：返回键先收起弹层
+    // （弹层打开时已 pushState，这次 popstate 只是回到打开前的状态，无需切视图）
+    if (pinOpen){ closePinSheet(); return; }
+    // 编辑态下按系统返回手势/返回键：先退出编辑态，不切换视图、不退出应用
+    if (editMode){ onEditBack(); return; }
+    onPopState(e.state || {v:"home"});
+  });
+
+  // 搜索
+  $("searchInput").addEventListener("input", function(){
+    $("searchClear").style.display = this.value ? "block" : "none";
+    renderPicker(this.value);
+  });
+  $("searchClear").addEventListener("click", function(){
+    $("searchInput").value = "";
+    $("searchClear").style.display = "none";
+    renderPicker("");
+  });
+
+  // 线路 tab
+  $("lineTabs").addEventListener("click", function(e){
+    var t = e.target.closest(".line-tab");
+    if (!t) return;
+    this.querySelectorAll(".line-tab").forEach(function(x){ x.classList.remove("active"); });
+    t.classList.add("active");
+    var c = t.getAttribute("data-line")==="__ALL__" ? "var(--primary)" : (LINES[t.getAttribute("data-line")]||"#2850E6");
+    t.style.background = c; t.style.color = "#fff";
+    this.querySelectorAll(".line-tab:not(.active)").forEach(function(x){ x.style.background = ""; x.style.color = ""; });
+    renderPicker($("searchInput").value);
+  });
+
+  // 选站
+  $("pickerBody").addEventListener("click", function(e){
+    var t = e.target.closest(".station-chip");
+    if (!t) return;
+    curStation = t.getAttribute("data-station");
+    curFilter = null;
+    $("searchInput").value = ""; $("searchClear").style.display = "none";
+    localStorage.setItem("bjmetro_last", curStation);
+    renderStation();
+    navTo("view-station", {v:"station", s:curStation});
+  });
+
+  // 收藏列表：点击进入；长按进入编辑态（可拖动排序、点 X 删除）
+  var list = $("favList");
+  function clearPress(){ clearTimeout(pressTimer); pressTimer = null; pressKey = null; }
+
+  function currentDomOrder(){
+    var nodes = list.querySelectorAll(".fav-card"), arr = [];
+    for (var i=0;i<nodes.length;i++) arr.push(nodes[i].getAttribute("data-key"));
+    return arr;
+  }
+  /* 把当前 DOM 顺序固化为自定义顺序（顺带剔除已删除的键） */
+  function commitOrder(){
+    favOrder = currentDomOrder().filter(function(k){ return favs[k] !== undefined; });
+    saveFavOrder();
+    pushWidgetSnapshot();            // 顺序变了 → 刷新小部件快照（小部件跟随收藏顺序）
+  }
+  function enterEdit(){
+    if (editMode) return;
+    editMode = true;
+    // 压入一条历史记录：安卓系统返回手势/返回键会触发 history.back()，
+    // 从而在 popstate 里先退出编辑态，而不是直接退出应用或跳走
+    try {
+      history.pushState({v:"home", edit:1}, "", location.href);
+      editPushed = true;
+    } catch(e){ editPushed = false; }
+    syncEditUI();
+  }
+  function exitEdit(){
+    if (!editMode) return;
+    editMode = false;
+    syncEditUI();
+    if (editPushed){                  // 清掉进入编辑态时压入的历史记录，保持返回栈整洁
+      editPushed = false;
+      editSuppressPop = true;
+      try { history.back(); } catch(e){ editSuppressPop = false; }
+    }
+  }
+  /* 系统返回（手势/返回键）触发的 popstate：处于编辑态时优先退出编辑态 */
+  function onEditBack(){
+    editMode = false;
+    editPushed = false;
+    syncEditUI();
+  }
+  /* 长按后"拿起"卡片：接管指针，后续 pointermove 即拖动 */
+  function startDrag(card){
+    drag = { card: card, id: lastPointerId, startY: lastY, moved: false };
+    card.classList.add("dragging");
+    list.classList.add("dragging-active");   // 暂停抖动动画，启用 FLIP 换位动画
+    try { list.setPointerCapture(drag.id); } catch(err){}
+  }
+  function endDrag(){
+    if (!drag) return;
+    var d = drag;
+    drag = null;
+    d.card.style.transform = "";
+    d.card.classList.remove("dragging");
+    list.classList.remove("dragging-active");
+    try { list.releasePointerCapture(d.id); } catch(err){}
+    if (d.moved) commitOrder();
+  }
+  /* FLIP 换位：先记录其余卡片位置，换位后把它们反向偏移回原位，再过渡归零，
+     使相邻卡片是"滑动让位"而不是瞬间跳位。 */
+  function flipSwap(refNode){
+    var nodes = list.querySelectorAll(".fav-card"), items = [], i;
+    for (i=0;i<nodes.length;i++){
+      if (nodes[i] === drag.card) continue;
+      items.push({ el: nodes[i], top: nodes[i].getBoundingClientRect().top });
+    }
+    var beforeTop = drag.card.offsetTop;
+    list.insertBefore(drag.card, refNode);
+    drag.startY += (drag.card.offsetTop - beforeTop);   // 修正基准点，保证跟手不跳
+    for (i=0;i<items.length;i++){
+      var it = items[i], now = it.el.getBoundingClientRect().top, delta = it.top - now;
+      if (!delta) continue;
+      it.el.style.transition = "none";
+      it.el.style.transform = "translateY(" + delta + "px)";
+      void it.el.offsetWidth;                            // 强制回流，确保起点生效
+      it.el.style.transition = "transform .18s var(--ease)";
+      it.el.style.transform = "";
+      // 动画结束后清掉内联 transition，恢复基础样式（否则会一直覆盖 box-shadow 的过渡）
+      setTimeout(function(el){ return function(){ el.style.transition = ""; }; }(it.el), 220);
+    }
+  }
+
+  list.addEventListener("pointerdown", function(e){
+    var card = e.target.closest(".fav-card");
+    if (!card || e.button > 0) return;
+    if (e.target.closest(".fav-del")) return;      // X 按钮不触发长按/拖拽
+    var k = card.getAttribute("data-key");
+    clearPress();
+    lastPointerId = e.pointerId;
+    lastY = e.clientY;
+
+    if (editMode){
+      // 已在编辑态：按住即可拖动（桌面图标手感），无需再次长按 520ms
+      pressFired = true;            // 抑制随后的 click，避免误跳转
+      navigator.vibrate && navigator.vibrate(15);
+      startDrag(card);
+      return;
+    }
+
+    pressKey = k;
+    pressFired = false;
+    pressTimer = setTimeout(function(){
+      pressFired = true;
+      enterEdit();
+      navigator.vibrate && navigator.vibrate(30);
+      startDrag(card);
+    }, 520);
+  });
+
+  /* 拖动位移与换位（clientY 为视口坐标），鼠标与触摸共用 */
+  function onDragMove(clientY){
+    if (!drag) return;
+    var dy = clientY - drag.startY;
+    drag.moved = true;
+    drag.card.style.transform = "translateY(" + dy + "px) scale(1.035)";
+
+    // 越过相邻卡片中线即交换位置；交换后修正基准点，保证卡片跟手不跳
+    var sibs = [], nodes = list.querySelectorAll(".fav-card"), i;
+    for (i=0;i<nodes.length;i++) sibs.push(nodes[i]);
+    var idx = sibs.indexOf(drag.card);
+    var box = drag.card.getBoundingClientRect();
+    var center = box.top + box.height / 2;
+    for (i=0;i<sibs.length;i++){
+      if (i === idx) continue;
+      var s = sibs[i], r = s.getBoundingClientRect(), sc = r.top + r.height / 2;
+      var swapped = (dy < 0 && i < idx && center < sc) || (dy > 0 && i > idx && center > sc);
+      if (swapped){
+        flipSwap(i < idx ? s : s.nextSibling);
+        drag.card.style.transform = "translateY(" + (clientY - drag.startY) + "px) scale(1.035)";
+        break;
+      }
+    }
+
+    // 靠近屏幕上下边缘自动滚动，便于拖到长列表尽头
+    var vh = window.innerHeight || document.documentElement.clientHeight;
+    if (clientY < 90) window.scrollBy(0, -12);
+    else if (clientY > vh - 90) window.scrollBy(0, 12);
+  }
+
+  // 鼠标 / 触控笔：用 pointermove
+  list.addEventListener("pointermove", function(e){
+    if (!drag){ clearPress(); return; }            // 未进入拖拽时，移动视为滚动 → 取消长按
+    if (e.pointerId !== drag.id) return;
+    if (e.pointerType === "touch") return;         // 触摸交给 touchmove 处理（见下）
+    e.preventDefault();
+    onDragMove(e.clientY);
+  }, { passive:false });
+
+  // 触摸：必须在 touchmove 阶段 preventDefault。
+  // 关键坑：pointermove 里调 preventDefault() 无法阻止页面滚动；浏览器一旦把手势判定为滚动，
+  // 就会发出 pointercancel，而 pointercancel 会结束拖拽 —— 表现为「能进编辑态但拖不动」。
+  list.addEventListener("touchmove", function(e){
+    if (!drag) return;
+    e.preventDefault();
+    var t = e.touches && e.touches[0];
+    if (t) onDragMove(t.clientY);
+  }, { passive:false });
+
+  list.addEventListener("pointerup", function(e){
+    clearPress();
+    if (drag && e.pointerId === drag.id) endDrag();
+  });
+  list.addEventListener("touchend", function(){ clearPress(); endDrag(); });
+  list.addEventListener("touchcancel", function(){ clearPress(); endDrag(); });
+  list.addEventListener("pointercancel", function(e){
+    clearPress();
+    // 触摸时的 pointercancel 多由浏览器接管滚动引起，但 touch 事件仍会继续派发，
+    // 因此不在此结束拖拽，交给 touchend / touchcancel 收尾，避免拖拽被过早中断。
+    if (e && e.pointerType && e.pointerType !== "touch") endDrag();
+  });
+  list.addEventListener("pointerleave", function(){ if (!drag) clearPress(); });
+  // 屏蔽长按系统菜单，避免打断编辑态
+  list.addEventListener("contextmenu", function(e){
+    if (editMode || e.target.closest(".fav-card")) e.preventDefault();
+  });
+
+  list.addEventListener("click", function(e){
+    var del = e.target.closest(".fav-del");
+    if (del){                                      // 编辑态：点 X 仍走删除确认抽屉
+      e.stopPropagation();
+      var dk = del.getAttribute("data-del");
+      pendingAction = {type:"one", key:dk};
+      var dlabel = isDirKey(dk) ? (function(){ var p=splitDirKey(dk); return p.st+" · "+p.l+" · "+(p.d); })() : dk;
+      openSheet("删除收藏？", "「"+dlabel+"」将从收藏中移除", "删除收藏");
+      return;
+    }
+    if (pressFired){ pressFired = false; return; }
+    var card = e.target.closest(".fav-card");
+    if (!card) return;
+    if (editMode) return;                          // 编辑态下点卡片不跳转
+    var k = card.getAttribute("data-key");
+    if (isDirKey(k)){
+      var pk = splitDirKey(k);
+      curStation = pk.st; curFilter = {l:pk.l, d:pk.d};
+    } else {
+      curStation = k; curFilter = null;
+    }
+    localStorage.setItem("bjmetro_last", curStation);
+    $("searchInput").value = ""; $("searchClear").style.display = "none";
+    renderStation();
+    navTo("view-station", {v:"station", s:curStation, l:curFilter?curFilter.l:null, d:curFilter?curFilter.d:null});
+  });
+
+  $("btnFavDone").addEventListener("click", function(){
+    if (drag) return;
+    if (!favOrder) commitOrder();                  // 首次进入编辑态即固化当前顺序
+    exitEdit();
+  });
+
+  // 详情：方向收藏 / 展开全部
+  $("dirList").addEventListener("click", function(e){
+    var btn = e.target.closest(".dir-star");
+    if (btn){
+      e.stopPropagation();
+      toggleFav(btn.getAttribute("data-fav"));
+      return;
+    }
+    var sa = e.target.closest(".show-all");
+    if (sa){
+      var idx = +sa.getAttribute("data-i");
+      expandedAll[idx] = !expandedAll[idx];
+      var rec = renderRecs[idx], times = rec ? dirTimes(rec) : [];
+      var base = nowMin(); if (base<270) base += 1440;
+      var n = calcNext(times, base);
+      if (n){
+        if (n.idx < 0) renderNextListEnded(rec, times, idx, fmtHMNextDay(n.last));
+        else renderNextList(rec, times, n, idx);
+      }
+      if (expandedAll[idx]) scrollToHighlight(idx);
+      return;
+    }
+  });
+
+  // 展开后自动定位到高亮（下一班）时刻
+  function scrollToHighlight(i){
+    var cur = $("nl-"+i).querySelector(".at-chip.cur");
+    if (!cur) return;
+    setTimeout(function(){
+      try { cur.scrollIntoView({behavior:"smooth", block:"center"}); }
+      catch(e){ cur.scrollIntoView(); }
+    }, 80);
+  }
+
+  // 顶部全站收藏
+  function popStar(){
+    var s = $("stStar");
+    s.classList.remove("pop"); void s.offsetWidth; s.classList.add("pop");
+  }
+  $("stStar").addEventListener("click", function(){
+    if (curStation){ toggleFav(curStation); popStar(); }
+  });
+  $("btnStar").addEventListener("click", function(){
+    if (curStation){ toggleFav(curStation); popStar(); }
+  });
+
+  // 过滤清除
+  $("filterClear").addEventListener("click", function(){
+    curFilter = null;
+    renderStation();
+  });
+
+  // 删除弹层
+  $("sheetMask").addEventListener("click", closeSheet);
+  $("sheetCancel").addEventListener("click", closeSheet);
+  $("sheetDel").addEventListener("click", onSheetDel);
+
+  // 手动检查更新：点击"数据更新"→ 确认框 → 对比 GitHub
+  $("updBtn").addEventListener("click", function(){
+    if (checking) return;
+    openSheet("检查数据更新", "将连接 GitHub 检查时刻表是否有新版本，仅在发现新数据时提示，不消耗流量下载数据。", "检查更新", "update");
+  });
+
+  // 清空全部收藏
+  $("btnClearAll").addEventListener("click", function(){
+    var n = Object.keys(favs).length;
+    if (!n) return;
+    pendingAction = {type:"all"};
+    openSheet("清空全部收藏？", n+" 个收藏将被全部移除，此操作不可恢复", "全部清空");
+  });
+
+  // 返回顶部
+  var bt = $("backTop");
+  window.addEventListener("scroll", function(){
+    bt.style.display = window.scrollY>600 ? "flex" : "none";
+  });
+  bt.addEventListener("click", function(){ window.scrollTo({top:0,behavior:"smooth"}); });
+
+  // 数据说明
+  $("dataNote").textContent = "数据来源：beijing-subway-schedule（CC BY-SA 4.0）· 更新于 "+(META.updated||"—")
+    +" · 时刻为计划时间，实际以现场为准";
+
+  // 每秒刷新
+  setInterval(function(){
+    tickHome();
+    tickFavNext();
+    if (curStation) renderDirBody();
+  }, 1000);
+
+  // 默认打开首页；仅当 URL 带 ?s=站名 参数时直达该站详情（分享/调试用）
+  var qs = null;
+  try { qs = new URLSearchParams(location.search).get("s"); } catch(e){}
+  if (qs && STATIONS[qs]){
+    curStation = qs;
+    renderStation();
+    showView("view-station");
+    try { history.replaceState({v:"station", s:qs}, ""); } catch(e){}
+  } else {
+    try { history.replaceState({v:"home"}, ""); } catch(e){}
+  }
+}
+init();
+</script>
+</body>
+</html>

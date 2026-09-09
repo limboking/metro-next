@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      状态栏/导航栏使用网页背景色 bg (#F3F4F6)，让 WebView 内容区与网页版观感一致，
+      状态栏如同浏览器地址栏一样自然过渡；深色图标适配浅色背景。
+    -->
+    <style name="Theme.MetroNext" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@color/bg</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:navigationBarColor">@color/bg</item>
+        <item name="android:windowBackground">@color/bg</item>
+    </style>
+</resources>

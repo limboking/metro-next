@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 2×2 小部件：每页 1 个站点。
+     ★ 尺寸以「本机型实测可用」为准：125×125dp。
+       （小米小部件规范给的参考值是 110×110dp，但本机实测 125×125dp 才稳定。）
+       updatePeriodMillis 仅为兜底；真实刷新由 WidgetTick 闹钟链承担。 -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:initialLayout="@layout/widget_small"
+    android:minWidth="125dp"
+    android:minHeight="125dp"
+    android:resizeMode="horizontal|vertical"
+    android:targetCellWidth="2"
+    android:targetCellHeight="2"
+    android:updatePeriodMillis="1800000"
+    android:previewImage="@drawable/widget_preview_small"
+    android:description="@string/widget_desc_small"
+    android:widgetCategory="home_screen" />

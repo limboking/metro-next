@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  2×2 单站小部件（v1.0.25 HyperOS 规范版）
+
+  规范要点：
+  - 根布局 id 必须是 @android:id/background，且背景不透明（系统据此加圆角与切换动画）
+  - 内容安全区 16dp（小米规范要求 1080p 屏 ≥40px ≈ 14.5dp）
+  - 深色模式只做 XML 静态适配：所有颜色写在布局里引用 @color，由 values-night 切换。
+    严禁代码 setTextColor——小米切换深色时用缓存的 RemoteViews 重建，代码设的值不会更新。
+  - 紧急态（≤1 分钟）用「双 TextView 叠放 + 切显隐」实现，同理不能动态设色。
+
+  结构：色条+站名 / 线路·方向 / 下一站 / 分割线 / 最近 3 班（「时刻 · 倒计时」合并单行）
+  注：2×2 只有 110~160dp 宽，还要让出 28dp 翻页列——「时刻」与「倒计时」若分列放不下，
+      会截断；因此回退 v1.0.9 验证过的合并单行样式（首班强调色，后两班次级灰）。
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/background"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_bg"
+    android:paddingStart="10dp"
+    android:paddingEnd="4dp"
+    android:paddingTop="6dp"
+    android:paddingBottom="6dp">
+
+    <LinearLayout
+        android:id="@+id/widget_root"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:paddingEnd="30dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/w_bar"
+                android:layout_width="4dp"
+                android:layout_height="18dp" />
+
+            <TextView
+                android:id="@+id/w_name"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:text="西二旗"
+                android:textColor="@color/widget_text_primary"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/w_line"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="3dp"
+            android:ellipsize="end"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:text="6号线 · 开往 潞城"
+            android:textColor="@color/widget_text_tertiary"
+            android:textSize="10sp" />
+
+        <!-- 下一站：无数据时运行时 setViewVisibility(GONE) -->
+        <TextView
+            android:id="@+id/w_next"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:ellipsize="end"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:text="下一站 十里堡"
+            android:textColor="@color/widget_text_tertiary"
+            android:textSize="10sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginTop="8dp"
+            android:background="@color/widget_divider" />
+
+        <!-- 最近 3 班：三行均分剩余高度，行内容垂直居中（合并单行，见文件头注释） -->
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1">
+
+            <TextView
+                android:id="@+id/w_up1"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="start|center_vertical"
+                android:includeFontPadding="false"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="15:04 · 3 分钟"
+                android:textColor="@color/widget_accent"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/w_up1_d"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="start|center_vertical"
+                android:includeFontPadding="false"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="15:04 · 已进站"
+                android:textColor="@color/widget_danger"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+        </FrameLayout>
+
+        <TextView
+            android:id="@+id/w_up2"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:gravity="start|center_vertical"
+            android:includeFontPadding="false"
+            android:ellipsize="end"
+                android:maxLines="1"
+            android:text="15:11 · 10 分钟"
+            android:textColor="@color/widget_text_secondary"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/w_up3"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:gravity="start|center_vertical"
+            android:includeFontPadding="false"
+            android:ellipsize="end"
+                android:maxLines="1"
+            android:text="15:19 · 18 分钟"
+            android:textColor="@color/widget_text_secondary"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/pager_box"
+        android:layout_width="24dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="end|center_vertical"
+        android:gravity="center"
+        android:orientation="vertical">
+
+        <ImageView
+            android:id="@+id/w_refresh"
+            android:layout_width="24dp"
+            android:layout_height="26dp"
+            android:contentDescription="@string/widget_refresh"
+            android:scaleType="center"
+            android:src="@drawable/ic_refresh" />
+
+        <ImageView
+            android:id="@+id/pager_prev"
+            android:layout_width="24dp"
+            android:layout_height="26dp"
+            android:contentDescription="@string/widget_prev_page"
+            android:scaleType="center"
+            android:src="@drawable/ic_chevron_up" />
+
+        <TextView
+            android:id="@+id/pager_num"
+            android:layout_width="wrap_content"
+            android:layout_height="16dp"
+            android:gravity="center"
+            android:includeFontPadding="false"
+            android:text="1/1"
+            android:textColor="@color/widget_text_tertiary"
+            android:textSize="11sp" />
+
+        <ImageView
+            android:id="@+id/pager_next"
+            android:layout_width="24dp"
+            android:layout_height="26dp"
+            android:contentDescription="@string/widget_next_page"
+            android:scaleType="center"
+            android:src="@drawable/ic_chevron_down" />
+    </LinearLayout>
+</FrameLayout>

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Metro Next</string>
+
+    <!-- 桌面小部件 -->
+    <string name="widget_line_color">线路颜色</string>
+    <string name="widget_prev_page">上一页</string>
+    <string name="widget_next_page">下一页</string>
+    <string name="widget_refresh">刷新</string>
+    <string name="widget_no_fav">还没有收藏站点</string>
+    <string name="widget_open_hint">打开应用添加收藏</string>
+    <!-- 小部件名称：2~10 汉字，不得与应用名「Metro Next」相同。
+         三个尺寸共用同一个 label，小米小部件中心会把它们聚合为一个展示。 -->
+    <string name="widget_label">地铁时刻</string>
+    <!-- 小部件介绍：中文 ≤22 字符，末尾禁止标点，不得用极限词 -->
+    <string name="widget_desc_small">显示常坐站点的下一班与后续两班</string>
+    <string name="widget_desc_medium">显示三个收藏站点的下一班并可翻页</string>
+    <string name="widget_desc_large">显示六个收藏站点的下一班并可翻页</string>
+</resources>

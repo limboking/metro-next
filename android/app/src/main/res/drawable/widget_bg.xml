@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 小部件圆角背景。颜色引用 widget_bg_color，深浅色模式自动切换。
+     圆角 20dp：小米小部件规范要求 1080p 屏交付资源圆角 55px（≈20dp@2.75x），
+     系统会再统一裁切，所以这里给足圆角、且背景必须不透明（规范硬性要求）。 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/widget_bg_color" />
+    <corners android:radius="20dp" />
+</shape>

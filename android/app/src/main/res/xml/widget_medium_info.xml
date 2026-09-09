@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 4×2 小部件：每页 3 个站点。
+     ★ minWidth 必须锁死 250dp，不能用官方建议的 300dp：
+       小米常见 5×6 / 4×6 桌面网格下，横向 4 格的实际可用宽度不足 300dp，
+       声明 300dp 会让 launcher 无法分配 → 「载入窗口小部件时出现问题」。
+       （v1.0.x 已从 294→250 踩过一次，v1.0.25 改回 300 再次复现，v1.0.26 锁死 250。） -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:initialLayout="@layout/widget_list3"
+    android:minWidth="250dp"
+    android:minHeight="125dp"
+    android:resizeMode="horizontal|vertical"
+    android:targetCellWidth="4"
+    android:targetCellHeight="2"
+    android:updatePeriodMillis="1800000"
+    android:previewImage="@drawable/widget_preview_medium"
+    android:description="@string/widget_desc_medium"
+    android:widgetCategory="home_screen" />

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  桌面小部件的深色配色。
+
+  只覆盖 widget_* 系列，不碰 App 原有颜色（primary / bg / surface / ink / line / danger），
+  因为网页版自行处理深色模式，覆盖它们会连带影响状态栏等 App UI。
+
+  注意：widget_accent 与 widget_danger 在深色下都做了「提亮」处理
+  （#2850E6 → #6B87FF、#E5484D → #F0656A）。直接沿用浅色值在深底上会发暗、对比度不足。
+-->
+<resources>
+    <color name="widget_bg_color">#1C1F27</color>
+    <color name="widget_text_primary">#E9ECF1</color>
+    <color name="widget_text_secondary">#9AA1AF</color>
+    <color name="widget_text_tertiary">#6B7280</color>
+    <color name="widget_accent">#6B87FF</color>
+    <color name="widget_danger">#F0656A</color>
+    <color name="widget_divider">#262A33</color>
+    <color name="widget_pager">#8B93A1</color>
+</resources>

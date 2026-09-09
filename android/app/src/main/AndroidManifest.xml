@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- 联网权限：网页版「更新数据」用 fetch 拉取新版时刻表 -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- 长按进入编辑态时的触感反馈（navigator.vibrate） -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- 小部件刷新：setAndAllowWhileIdle 闹钟链，无需精确闹钟权限
+         （SCHEDULE_EXACT_ALARM 在 Android 14 上默认拒绝且需用户授权，已弃用） -->
+    <!-- 开机后重排小部件刷新闹钟（系统开机会清空全部 AlarmManager 闹钟） -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:hardwareAccelerated="true"
+        android:theme="@style/Theme.MetroNext">
+
+        <!-- ⚠️ 小米「小部件中心」专属声明（miuiWidgetVersion / miuiWidget /
+             miuiWidgetRefresh / 独立进程 :widgetProvider）已于 v1.0.26 全部移除。
+             原因：这些是「小米小部件」私有通道的开关，声明后 HyperOS 会把三个
+             provider 从小米小部件通道加载，而该通道要求小部件已提交并通过审核；
+             未送审的自用包（含 debug）声明它 → launcher 报
+             「载入窗口小部件时出现问题」，且 requestPinAppWidget 静默失败。
+             结论：Phase A（自用 / 分享安装，不送审）必须走纯原生 AppWidget 通道。
+             将来若走送审流程，再把上述声明加回（届时曝光刷新才可用）。 -->
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode|density|fontScale"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- ===== 桌面小部件（三种尺寸）=====
+             纯原生 AppWidget 通道（v1.0.26 起）。
+             三个尺寸共用 @string/widget_label，小部件列表里会聚合显示。
+             刷新由 WidgetTick 闹钟链 + updatePeriodMillis 兜底承担。
+             注：小米会推迟非白名单应用的闹钟，需在系统设置里把本应用
+                 省电策略设为「无限制」并开启自启动，详见 App 内提示文案。 -->
+        <receiver
+            android:name=".widget.WidgetSmall"
+            android:exported="true"
+            android:label="@string/widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <!-- 保留声明：小米送审版开启曝光刷新时可复用，当前系统不会发送 -->
+                <action android:name="miui.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_small_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.WidgetMedium"
+            android:exported="true"
+            android:label="@string/widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="miui.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_medium_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.WidgetLarge"
+            android:exported="true"
+            android:label="@string/widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="miui.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_large_info" />
+        </receiver>
+
+        <!-- 发车时刻到达时唤醒，用于把「下一班」切换到再下一班；
+             同时监听开机完成，重排被系统清空的闹钟。 -->
+        <receiver
+            android:name=".widget.WidgetTickReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- 网页「添加到桌面」的结果回调：requestPinAppWidget 的回调在部分
+             机型（含小米）不触发，实际成败由延时比对 getAppWidgetIds 判定，
+             该 receiver 仅作为兼容保留。 -->
+        <receiver
+            android:name=".WidgetPinResultReceiver"
+            android:exported="false" />
+    </application>
+</manifest>
