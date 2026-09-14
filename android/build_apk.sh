@@ -207,6 +207,13 @@ sync_source() {
     mkdir -p "$BUILD_ROOT"
     echo "[sync] 同步源码 -> $BUILD_PROJ（纯 ASCII 路径）"
     cd "D:/WorkBuddy_Save/手机小程序开发"
+    # 防回归（v1.0.30 事故）：模板一旦是旧副本、产物由它重建，模板缺失的修复会被静默回退
+    # （曾丢过「小部件 v2 快照构建器」→ 原生弃用快照 → 小部件永久空态）。
+    # 这类漂移没有编译期报错，必须在打包前显式拦截。
+    if ! "$PY" "scripts/check_template_sync.py"; then
+        echo "[check] 构建中止：网页模板与产物不一致，请先修复（见上方提示）"
+        exit 1
+    fi
     # App 内嵌网页由根目录 beijing-metro.html 生成。
     # 仓库里不存这份副本（它是与 beijing-metro.html 完全相同的 1.1MB，提交两份纯属浪费），
     # 改为每次构建前自动同步，保证与网页版逐字节一致。
