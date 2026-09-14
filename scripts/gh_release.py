@@ -15,17 +15,20 @@ import urllib.request
 import urllib.error
 
 REPO = "limboking/metro-next"
-VER = "1.0.24"
+VER = "1.0.30"
 TAG = "v" + VER
 NAME = "Metro Next v" + VER
-APK_PATH = r"D:/WorkBuddy_Save/手机小程序开发/MetroNext-release.apk"
+APK_PATH = r"D:/WorkBuddy_Save/手机小程序开发/MetroNext-release-1.0.30.apk"
 ASSET_NAME = "MetroNext-v%s-release.apk" % VER
 
 BODY = (
     "## 更新内容\n"
-    "- 修复：末页孤儿行——收藏数不是每页整数倍时（如 8 站 / 每页 6 站），\n"
-    "  末页只剩 1-2 行且大片留白，看起来像站点丢失；现末页从队尾回退取满，\n"
-    "  任何一页都是满行（与前一页有少量重叠）\n\n"
+    "- 新增：应用内「添加到桌面」面板——三种尺寸的小部件一键快捷添加，\n"
+    "  已添加过的尺寸会置灰显示「已添加」，不可重复添加\n"
+    "- 新增：「桌面快捷方式」权限检测与引导——未开启该权限时添加会静默失败，\n"
+    "  现在会弹窗提示并可一键跳转开启\n"
+    "- 修复：部分桌面添加小部件后显示「载入窗口小部件时出现问题」的兼容性问题\n"
+    "- 优化：添加面板间距与提示文案排版\n\n"
     "## 说明\n"
     "- release 版不带任何调试功能、不写诊断日志\n"
     "- 与 debug 版同签名，可直接覆盖升级，收藏数据保留\n\n"
