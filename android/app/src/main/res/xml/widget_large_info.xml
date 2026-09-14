@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 4×4 小部件：每页 4 个站点 -->
+<!-- 4×4 小部件：每页 6 个站点。
+     ★ 同 4×2：minWidth 锁死 250dp（原因见 widget_medium_info.xml），
+       官方建议的 300dp 在本机型网格下会载入失败。 -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:initialLayout="@layout/widget_list6"
     android:minWidth="250dp"

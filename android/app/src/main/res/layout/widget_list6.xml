@@ -1,8 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- v1.0.8：色条改为 TextView + setBackgroundColor（弃用位图，修复小米翻页后色条消失）。
-     其余同 v1.0.7：FrameLayout 根、翻页列钉右缘、行 weight 均分。 -->
+<!--
+  4×4 六站小部件（v1.0.25 HyperOS 规范版）
+
+  规范要点见 widget_small.xml 顶部注释（根 id / 安全区 / 深色静态适配 / 双 TextView 紧急态）。
+
+  行结构：[4dp 线路色条] 站名(14sp) + 线路·方向(11sp) │ 倒计时(18sp) + 时刻(11sp)
+  行高用 height=0dp + weight=1 均分，行间 1dp 分割线（不足一页时运行时 GONE）。
+  本文件由 scripts/gen_widget_list6.py 生成，行结构与 widget_list3.xml 必须一致——
+  改行结构请改 4×2 布局后重跑脚本，不要手改本文件。
+-->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/widget_root"
+    android:id="@android:id/background"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/widget_bg"
@@ -10,6 +18,7 @@
     android:paddingEnd="4dp">
 
     <LinearLayout
+        android:id="@+id/widget_root"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
@@ -23,13 +32,10 @@
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
-            <!-- 色条：TextView + setBackgroundColor（RemoteViews 反射方法）。
-                 不用 setImageViewBitmap——小米 launcher 对 RemoteViews 位图有
-                 缓存/丢弃问题，翻页后部分行位图不显示（v1.0.7 实测）。 -->
             <TextView
                 android:id="@+id/row1_bar"
                 android:layout_width="4dp"
-                android:layout_height="26dp" />
+                android:layout_height="18dp" />
 
             <LinearLayout
                 android:layout_width="0dp"
@@ -45,7 +51,7 @@
                     android:ellipsize="end"
                     android:includeFontPadding="false"
                     android:maxLines="1"
-                    android:text="—"
+                    android:text="西二旗"
                     android:textColor="@color/widget_text_primary"
                     android:textSize="13sp"
                     android:textStyle="bold" />
@@ -58,7 +64,7 @@
                     android:ellipsize="end"
                     android:includeFontPadding="false"
                     android:maxLines="1"
-                    android:text="—"
+                    android:text="13号线 · 开往 西土城"
                     android:textColor="@color/widget_text_tertiary"
                     android:textSize="10sp" />
             </LinearLayout>
@@ -66,19 +72,36 @@
             <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
+                android:layout_marginStart="8dp"
                 android:gravity="end"
                 android:orientation="vertical">
 
-                <TextView
-                    android:id="@+id/row1_cd"
+                <FrameLayout
                     android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:includeFontPadding="false"
-                    android:text="—"
-                    android:textColor="@color/widget_accent"
-                    android:textSize="17sp"
-                    android:textStyle="bold" />
+                    android:layout_height="wrap_content">
+
+                    <TextView
+                        android:id="@+id/row1_cd"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:text="3 分钟"
+                        android:textColor="@color/widget_accent"
+                        android:textSize="17sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/row1_cd_d"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:text="1 分钟"
+                        android:textColor="@color/widget_danger"
+                        android:textSize="17sp"
+                        android:textStyle="bold" />
+                </FrameLayout>
 
                 <TextView
                     android:id="@+id/row1_time"
@@ -86,18 +109,17 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="1dp"
                     android:includeFontPadding="false"
-                    android:text="—"
+                    android:maxLines="1"
+                    android:text="14:32"
                     android:textColor="@color/widget_text_tertiary"
                     android:textSize="10sp" />
             </LinearLayout>
         </LinearLayout>
-
         <LinearLayout
             android:id="@+id/div1"
             android:layout_width="match_parent"
             android:layout_height="1dp"
             android:background="@color/widget_divider" />
-
         <LinearLayout
             android:id="@+id/row2"
             android:layout_width="match_parent"
@@ -106,13 +128,10 @@
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
-            <!-- 色条：TextView + setBackgroundColor（RemoteViews 反射方法）。
-                 不用 setImageViewBitmap——小米 launcher 对 RemoteViews 位图有
-                 缓存/丢弃问题，翻页后部分行位图不显示（v1.0.7 实测）。 -->
             <TextView
                 android:id="@+id/row2_bar"
                 android:layout_width="4dp"
-                android:layout_height="26dp" />
+                android:layout_height="18dp" />
 
             <LinearLayout
                 android:layout_width="0dp"
@@ -128,7 +147,7 @@
                     android:ellipsize="end"
                     android:includeFontPadding="false"
                     android:maxLines="1"
-                    android:text="—"
+                    android:text="国贸"
                     android:textColor="@color/widget_text_primary"
                     android:textSize="13sp"
                     android:textStyle="bold" />
@@ -141,7 +160,7 @@
                     android:ellipsize="end"
                     android:includeFontPadding="false"
                     android:maxLines="1"
-                    android:text="—"
+                    android:text="10号线 · 内环"
                     android:textColor="@color/widget_text_tertiary"
                     android:textSize="10sp" />
             </LinearLayout>
@@ -149,19 +168,36 @@
             <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
+                android:layout_marginStart="8dp"
                 android:gravity="end"
                 android:orientation="vertical">
 
-                <TextView
-                    android:id="@+id/row2_cd"
+                <FrameLayout
                     android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:includeFontPadding="false"
-                    android:text="—"
-                    android:textColor="@color/widget_accent"
-                    android:textSize="17sp"
-                    android:textStyle="bold" />
+                    android:layout_height="wrap_content">
+
+                    <TextView
+                        android:id="@+id/row2_cd"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:text="6 分钟"
+                        android:textColor="@color/widget_accent"
+                        android:textSize="17sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/row2_cd_d"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:text="1 分钟"
+                        android:textColor="@color/widget_danger"
+                        android:textSize="17sp"
+                        android:textStyle="bold" />
+                </FrameLayout>
 
                 <TextView
                     android:id="@+id/row2_time"
@@ -169,18 +205,17 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="1dp"
                     android:includeFontPadding="false"
-                    android:text="—"
+                    android:maxLines="1"
+                    android:text="14:35"
                     android:textColor="@color/widget_text_tertiary"
                     android:textSize="10sp" />
             </LinearLayout>
         </LinearLayout>
-
         <LinearLayout
             android:id="@+id/div2"
             android:layout_width="match_parent"
             android:layout_height="1dp"
             android:background="@color/widget_divider" />
-
         <LinearLayout
             android:id="@+id/row3"
             android:layout_width="match_parent"
@@ -189,13 +224,10 @@
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
-            <!-- 色条：TextView + setBackgroundColor（RemoteViews 反射方法）。
-                 不用 setImageViewBitmap——小米 launcher 对 RemoteViews 位图有
-                 缓存/丢弃问题，翻页后部分行位图不显示（v1.0.7 实测）。 -->
             <TextView
                 android:id="@+id/row3_bar"
                 android:layout_width="4dp"
-                android:layout_height="26dp" />
+                android:layout_height="18dp" />
 
             <LinearLayout
                 android:layout_width="0dp"
@@ -211,7 +243,7 @@
                     android:ellipsize="end"
                     android:includeFontPadding="false"
                     android:maxLines="1"
-                    android:text="—"
+                    android:text="西直门"
                     android:textColor="@color/widget_text_primary"
                     android:textSize="13sp"
                     android:textStyle="bold" />
@@ -224,7 +256,7 @@
                     android:ellipsize="end"
                     android:includeFontPadding="false"
                     android:maxLines="1"
-                    android:text="—"
+                    android:text="2号线 · 内环"
                     android:textColor="@color/widget_text_tertiary"
                     android:textSize="10sp" />
             </LinearLayout>
@@ -232,19 +264,36 @@
             <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
+                android:layout_marginStart="8dp"
                 android:gravity="end"
                 android:orientation="vertical">
 
-                <TextView
-                    android:id="@+id/row3_cd"
+                <FrameLayout
                     android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:includeFontPadding="false"
-                    android:text="—"
-                    android:textColor="@color/widget_accent"
-                    android:textSize="17sp"
-                    android:textStyle="bold" />
+                    android:layout_height="wrap_content">
+
+                    <TextView
+                        android:id="@+id/row3_cd"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:text="9 分钟"
+                        android:textColor="@color/widget_accent"
+                        android:textSize="17sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/row3_cd_d"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:text="1 分钟"
+                        android:textColor="@color/widget_danger"
+                        android:textSize="17sp"
+                        android:textStyle="bold" />
+                </FrameLayout>
 
                 <TextView
                     android:id="@+id/row3_time"
@@ -252,18 +301,17 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="1dp"
                     android:includeFontPadding="false"
-                    android:text="—"
+                    android:maxLines="1"
+                    android:text="14:38"
                     android:textColor="@color/widget_text_tertiary"
                     android:textSize="10sp" />
             </LinearLayout>
         </LinearLayout>
-
         <LinearLayout
             android:id="@+id/div3"
             android:layout_width="match_parent"
             android:layout_height="1dp"
             android:background="@color/widget_divider" />
-
         <LinearLayout
             android:id="@+id/row4"
             android:layout_width="match_parent"
@@ -272,13 +320,10 @@
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
-            <!-- 色条：TextView + setBackgroundColor（RemoteViews 反射方法）。
-                 不用 setImageViewBitmap——小米 launcher 对 RemoteViews 位图有
-                 缓存/丢弃问题，翻页后部分行位图不显示（v1.0.7 实测）。 -->
             <TextView
                 android:id="@+id/row4_bar"
                 android:layout_width="4dp"
-                android:layout_height="26dp" />
+                android:layout_height="18dp" />
 
             <LinearLayout
                 android:layout_width="0dp"
@@ -294,7 +339,7 @@
                     android:ellipsize="end"
                     android:includeFontPadding="false"
                     android:maxLines="1"
-                    android:text="—"
+                    android:text="东单"
                     android:textColor="@color/widget_text_primary"
                     android:textSize="13sp"
                     android:textStyle="bold" />
@@ -307,7 +352,7 @@
                     android:ellipsize="end"
                     android:includeFontPadding="false"
                     android:maxLines="1"
-                    android:text="—"
+                    android:text="1号线 · 开往 环球度假区"
                     android:textColor="@color/widget_text_tertiary"
                     android:textSize="10sp" />
             </LinearLayout>
@@ -315,19 +360,36 @@
             <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
+                android:layout_marginStart="8dp"
                 android:gravity="end"
                 android:orientation="vertical">
 
-                <TextView
-                    android:id="@+id/row4_cd"
+                <FrameLayout
                     android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:includeFontPadding="false"
-                    android:text="—"
-                    android:textColor="@color/widget_accent"
-                    android:textSize="17sp"
-                    android:textStyle="bold" />
+                    android:layout_height="wrap_content">
+
+                    <TextView
+                        android:id="@+id/row4_cd"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:text="12 分钟"
+                        android:textColor="@color/widget_accent"
+                        android:textSize="17sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/row4_cd_d"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:text="1 分钟"
+                        android:textColor="@color/widget_danger"
+                        android:textSize="17sp"
+                        android:textStyle="bold" />
+                </FrameLayout>
 
                 <TextView
                     android:id="@+id/row4_time"
@@ -335,18 +397,17 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="1dp"
                     android:includeFontPadding="false"
-                    android:text="—"
+                    android:maxLines="1"
+                    android:text="14:41"
                     android:textColor="@color/widget_text_tertiary"
                     android:textSize="10sp" />
             </LinearLayout>
         </LinearLayout>
-
         <LinearLayout
             android:id="@+id/div4"
             android:layout_width="match_parent"
             android:layout_height="1dp"
             android:background="@color/widget_divider" />
-
         <LinearLayout
             android:id="@+id/row5"
             android:layout_width="match_parent"
@@ -355,13 +416,10 @@
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
-            <!-- 色条：TextView + setBackgroundColor（RemoteViews 反射方法）。
-                 不用 setImageViewBitmap——小米 launcher 对 RemoteViews 位图有
-                 缓存/丢弃问题，翻页后部分行位图不显示（v1.0.7 实测）。 -->
             <TextView
                 android:id="@+id/row5_bar"
                 android:layout_width="4dp"
-                android:layout_height="26dp" />
+                android:layout_height="18dp" />
 
             <LinearLayout
                 android:layout_width="0dp"
@@ -377,7 +435,7 @@
                     android:ellipsize="end"
                     android:includeFontPadding="false"
                     android:maxLines="1"
-                    android:text="—"
+                    android:text="北土城"
                     android:textColor="@color/widget_text_primary"
                     android:textSize="13sp"
                     android:textStyle="bold" />
@@ -390,7 +448,7 @@
                     android:ellipsize="end"
                     android:includeFontPadding="false"
                     android:maxLines="1"
-                    android:text="—"
+                    android:text="8号线 · 开往 朱辛庄"
                     android:textColor="@color/widget_text_tertiary"
                     android:textSize="10sp" />
             </LinearLayout>
@@ -398,19 +456,36 @@
             <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
+                android:layout_marginStart="8dp"
                 android:gravity="end"
                 android:orientation="vertical">
 
-                <TextView
-                    android:id="@+id/row5_cd"
+                <FrameLayout
                     android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:includeFontPadding="false"
-                    android:text="—"
-                    android:textColor="@color/widget_accent"
-                    android:textSize="17sp"
-                    android:textStyle="bold" />
+                    android:layout_height="wrap_content">
+
+                    <TextView
+                        android:id="@+id/row5_cd"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:text="15 分钟"
+                        android:textColor="@color/widget_accent"
+                        android:textSize="17sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/row5_cd_d"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:text="1 分钟"
+                        android:textColor="@color/widget_danger"
+                        android:textSize="17sp"
+                        android:textStyle="bold" />
+                </FrameLayout>
 
                 <TextView
                     android:id="@+id/row5_time"
@@ -418,18 +493,17 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="1dp"
                     android:includeFontPadding="false"
-                    android:text="—"
+                    android:maxLines="1"
+                    android:text="14:44"
                     android:textColor="@color/widget_text_tertiary"
                     android:textSize="10sp" />
             </LinearLayout>
         </LinearLayout>
-
         <LinearLayout
             android:id="@+id/div5"
             android:layout_width="match_parent"
             android:layout_height="1dp"
             android:background="@color/widget_divider" />
-
         <LinearLayout
             android:id="@+id/row6"
             android:layout_width="match_parent"
@@ -438,13 +512,10 @@
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
-            <!-- 色条：TextView + setBackgroundColor（RemoteViews 反射方法）。
-                 不用 setImageViewBitmap——小米 launcher 对 RemoteViews 位图有
-                 缓存/丢弃问题，翻页后部分行位图不显示（v1.0.7 实测）。 -->
             <TextView
                 android:id="@+id/row6_bar"
                 android:layout_width="4dp"
-                android:layout_height="26dp" />
+                android:layout_height="18dp" />
 
             <LinearLayout
                 android:layout_width="0dp"
@@ -460,7 +531,7 @@
                     android:ellipsize="end"
                     android:includeFontPadding="false"
                     android:maxLines="1"
-                    android:text="—"
+                    android:text="望京东"
                     android:textColor="@color/widget_text_primary"
                     android:textSize="13sp"
                     android:textStyle="bold" />
@@ -473,7 +544,7 @@
                     android:ellipsize="end"
                     android:includeFontPadding="false"
                     android:maxLines="1"
-                    android:text="—"
+                    android:text="15号线 · 开往 俸伯"
                     android:textColor="@color/widget_text_tertiary"
                     android:textSize="10sp" />
             </LinearLayout>
@@ -481,19 +552,36 @@
             <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
+                android:layout_marginStart="8dp"
                 android:gravity="end"
                 android:orientation="vertical">
 
-                <TextView
-                    android:id="@+id/row6_cd"
+                <FrameLayout
                     android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:includeFontPadding="false"
-                    android:text="—"
-                    android:textColor="@color/widget_accent"
-                    android:textSize="17sp"
-                    android:textStyle="bold" />
+                    android:layout_height="wrap_content">
+
+                    <TextView
+                        android:id="@+id/row6_cd"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:text="18 分钟"
+                        android:textColor="@color/widget_accent"
+                        android:textSize="17sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/row6_cd_d"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:text="1 分钟"
+                        android:textColor="@color/widget_danger"
+                        android:textSize="17sp"
+                        android:textStyle="bold" />
+                </FrameLayout>
 
                 <TextView
                     android:id="@+id/row6_time"
@@ -501,7 +589,8 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="1dp"
                     android:includeFontPadding="false"
-                    android:text="—"
+                    android:maxLines="1"
+                    android:text="14:47"
                     android:textColor="@color/widget_text_tertiary"
                     android:textSize="10sp" />
             </LinearLayout>
@@ -516,12 +605,10 @@
         android:gravity="center"
         android:orientation="vertical">
 
-        <!-- v1.0.17：手动刷新按钮（翻页按钮上方空白处）。
-             常显——即使只有一页（翻页控件隐藏时刷新仍可用）。 -->
         <ImageView
             android:id="@+id/w_refresh"
             android:layout_width="26dp"
-            android:layout_height="30dp"
+            android:layout_height="26dp"
             android:contentDescription="@string/widget_refresh"
             android:scaleType="center"
             android:src="@drawable/ic_refresh" />
@@ -529,7 +616,7 @@
         <ImageView
             android:id="@+id/pager_prev"
             android:layout_width="26dp"
-            android:layout_height="30dp"
+            android:layout_height="26dp"
             android:contentDescription="@string/widget_prev_page"
             android:scaleType="center"
             android:src="@drawable/ic_chevron_up" />
@@ -540,14 +627,14 @@
             android:layout_height="16dp"
             android:gravity="center"
             android:includeFontPadding="false"
-            android:text="1/1"
+            android:text="1/2"
             android:textColor="@color/widget_text_tertiary"
             android:textSize="10sp" />
 
         <ImageView
             android:id="@+id/pager_next"
             android:layout_width="26dp"
-            android:layout_height="30dp"
+            android:layout_height="26dp"
             android:contentDescription="@string/widget_next_page"
             android:scaleType="center"
             android:src="@drawable/ic_chevron_down" />

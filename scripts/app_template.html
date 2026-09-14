@@ -184,6 +184,76 @@ body{
 }
 .main-btn:active{transform:scale(.98);background:var(--primary-deep);box-shadow:0 3px 10px rgba(40,80,230,.3);}
 
+/* ================= 添加到桌面（仅 App 内显示） ================= */
+/* 底部小入口：不占空间，仅在主按钮下方加 34px 的幽灵按钮 */
+.pin-entry{
+  width:100%;height:34px;margin-top:6px;display:none;align-items:center;justify-content:center;gap:6px;
+  background:transparent;border:none;border-radius:11px;cursor:pointer;
+  color:var(--ink-2);font-size:13px;font-weight:500;letter-spacing:.02em;
+  transition:background .15s var(--ease),color .15s var(--ease);
+}
+.pin-entry.show{display:flex;}
+.pin-entry:active{background:rgba(22,26,36,.06);color:var(--ink);}
+/* 「添加到桌面」入口出现后底栏从 ~80px 变为 ~120px：
+   基础 96px 是按旧底栏设计的，必须加高，否则最后一张卡片被盖住 */
+body.pin-shown .home-body{padding-bottom:calc(118px + env(safe-area-inset-bottom));}
+.pin-entry svg{color:var(--ink-3);}
+
+.pin-mask{
+  position:fixed;inset:0;z-index:60;background:rgba(16,20,30,.42);
+  opacity:0;pointer-events:none;transition:opacity .22s var(--ease);
+}
+.pin-mask.show{opacity:1;pointer-events:auto;}
+.pin-sheet{
+  position:fixed;z-index:61;left:50%;bottom:0;transform:translate(-50%,100%);
+  width:100%;max-width:520px;background:var(--surface);
+  border-radius:22px 22px 0 0;box-shadow:var(--shadow-2);
+  padding:0 16px calc(16px + env(safe-area-inset-bottom));
+  transition:transform .28s var(--ease);
+}
+.pin-sheet.show{transform:translate(-50%,0);}
+.pin-grip{width:36px;height:4px;border-radius:2px;background:var(--surface-3);margin:8px auto 10px;}
+.pin-title{font-size:16.5px;font-weight:600;text-align:center;letter-spacing:.01em;}
+.pin-sub{font-size:12.5px;color:var(--ink-3);text-align:center;margin-top:4px;}
+
+.pin-opts{margin-top:14px;display:flex;flex-direction:column;gap:8px;}
+.pin-opt{
+  display:flex;align-items:center;gap:12px;width:100%;text-align:left;cursor:pointer;
+  background:var(--surface-2);border:1.5px solid transparent;border-radius:15px;padding:10px 13px;
+  transition:background .15s var(--ease),border-color .15s var(--ease),transform .12s var(--ease);
+}
+.pin-opt:active{transform:scale(.985);background:var(--primary-weak);border-color:var(--primary);}
+/* 尺寸缩略图：按 110×110 / 300×110 / 300×250dp 的真实比例缩放 */
+.pin-thumb{flex:0 0 auto;width:46px;height:40px;display:flex;align-items:center;justify-content:center;}
+.pin-thumb i{
+  display:block;position:relative;border-radius:6px;background:#fff;
+  border:1.5px solid var(--line);overflow:hidden;
+}
+.pin-thumb i::after{
+  content:"";position:absolute;left:5px;top:20%;bottom:20%;width:3px;border-radius:2px;
+  background:var(--primary);opacity:.85;
+}
+.pin-thumb.s i{width:24px;height:24px;}
+.pin-thumb.m i{width:40px;height:16px;}
+.pin-thumb.l i{width:40px;height:33px;}
+.pin-txt{flex:1;min-width:0;}
+.pin-txt b{display:block;font-size:14.5px;font-weight:600;color:var(--ink);}
+.pin-txt span{display:block;font-size:12px;color:var(--ink-3);margin-top:2px;}
+/* 「已添加」只是状态标签，不是可点的选框——点整行即添加 */
+.pin-badge{
+  flex:0 0 auto;font-size:11.5px;font-weight:600;color:var(--primary);
+  background:var(--primary-weak);border-radius:8px;padding:3px 8px;display:none;
+}
+.pin-opt.done .pin-badge{display:block;}
+.pin-note{margin:12px 2px 0;font-size:11.5px;color:var(--ink-3);line-height:1.75;text-align:justify;}
+.pin-note .pin-set{color:var(--primary);font-weight:600;white-space:nowrap;}
+.pin-cancel{
+  width:100%;height:46px;margin-top:10px;border:none;border-radius:14px;cursor:pointer;
+  background:var(--surface-2);color:var(--ink-2);font-size:15px;font-weight:500;
+}
+.pin-cancel:active{background:var(--surface-3);}
+.pin-entry,.pin-opt,.pin-cancel{font-family:inherit;}
+
 /* ================= 选择器 ================= */
 .picker-search{padding:6px 16px 10px;position:sticky;top:0;background:rgba(243,244,246,.92);backdrop-filter:blur(14px);z-index:10;}
 .search-box{
@@ -345,7 +415,8 @@ body{
 #toast{
   position:fixed;top:18px;left:50%;transform:translateX(-50%) translateY(-70px);z-index:80;
   background:rgba(22,26,36,.92);color:#fff;font-size:13.5px;padding:10px 20px;border-radius:22px;
-  transition:transform .32s var(--spring);pointer-events:none;white-space:nowrap;
+  transition:transform .32s var(--spring);pointer-events:none;
+  white-space:normal;max-width:86vw;text-align:center;line-height:1.55;
 }
 #toast.show{transform:translateX(-50%) translateY(0);}
 </style>
@@ -382,7 +453,14 @@ body{
         还没有收藏站点<br>点下方按钮，选个常坐的站吧
       </div>
     </div>
-    <div class="bottom-bar"><button class="main-btn" id="btnPick"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>选择站点</button></div>
+    <div class="bottom-bar">
+      <button class="main-btn" id="btnPick"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>选择站点</button>
+      <!-- 仅 App 内显示（init 里检测 window.MetroWidget 后加 .show） -->
+      <button class="pin-entry" id="btnPin">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg>
+        添加到桌面
+      </button>
+    </div>
   </section>
 
   <!-- ============ 选择器 ============ -->
@@ -433,6 +511,32 @@ body{
   <div class="sheet-sub" id="sheetSub">—</div>
   <button class="sb sb-del" id="sheetDel">删除收藏</button>
   <button class="sb sb-cancel" id="sheetCancel">取消</button>
+</div>
+<!-- 添加到桌面：尺寸选择弹层（仅 App 内使用，init 里检测桥接后才绑定事件） -->
+<div class="pin-mask" id="pinMask"></div>
+<div class="pin-sheet" id="pinSheet">
+  <div class="pin-grip"></div>
+  <div class="pin-title">添加到桌面</div>
+  <div class="pin-sub">点击尺寸即可添加，之后可长按挪位置</div>
+  <div class="pin-opts">
+    <button class="pin-opt" data-size="small">
+      <span class="pin-thumb s"><i></i></span>
+      <span class="pin-txt"><b>小（2×2）</b><span>1 个站点 · 最近 3 班</span></span>
+      <span class="pin-badge">已添加</span>
+    </button>
+    <button class="pin-opt" data-size="medium">
+      <span class="pin-thumb m"><i></i></span>
+      <span class="pin-txt"><b>中（4×2）</b><span>3 个站点 · 倒计时</span></span>
+      <span class="pin-badge">已添加</span>
+    </button>
+    <button class="pin-opt" data-size="large">
+      <span class="pin-thumb l"><i></i></span>
+      <span class="pin-txt"><b>大（4×4）</b><span>6 个站点 · 倒计时</span></span>
+      <span class="pin-badge">已添加</span>
+    </button>
+  </div>
+  <div class="pin-note">点尺寸添加没反应，多为「桌面快捷方式」权限未开启，<a class="pin-set" id="pinPerm" href="javascript:void(0)">去开启 →</a><br>或回桌面长按空白处 → 「添加小部件」→ 找到「地铁时刻」。建议把省电策略设为「无限制」并开启自启动，小部件才能持续刷新。</div>
+  <button class="pin-cancel" id="pinCancel">取消</button>
 </div>
 <div id="toast"></div>
 
@@ -952,12 +1056,14 @@ function onPopState(st){
 
 /* ================= Toast ================= */
 var toastTimer = null;
-function toast(msg){
+function toast(msg, ms){
   var t = $("toast");
   t.textContent = msg;
   t.classList.add("show");
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(function(){ t.classList.remove("show"); }, 1600);
+  // 长文案（引导类提示）按字数拉长显示时间，1.6s 根本看不完
+  var dur = ms || Math.min(7000, Math.max(1600, 900 + msg.length * 95));
+  toastTimer = setTimeout(function(){ t.classList.remove("show"); }, dur);
 }
 
 /* ================= 弹层（删除确认 / 检查更新 / 提示） ================= */
@@ -1611,6 +1717,77 @@ function pushWidgetSnapshot(){
   } catch(e){}
 }
 
+/* ================= 添加到桌面（仅 App 内） =================
+   桥接方法由 MainActivity 注入：
+     MetroWidget.canPinWidget()        当前桌面是否支持一键添加
+     MetroWidget.hasWidget(size)       该尺寸是否已在桌面上
+     MetroWidget.requestPinWidget(size) 发起添加，结果异步回调 window.MetroPinResult */
+var PIN_TXT = {
+  ok:"已添加到桌面",
+  canceled:"已取消添加",
+  unsupported:"当前桌面不支持应用内添加：请回到桌面，长按空白处 → 添加小部件 → 「地铁时刻」",
+  bad_size:"尺寸参数错误",
+  no_perm:"「桌面快捷方式」权限未开启，已弹出开启引导",
+  unknown:"桌面暂未响应：多为「桌面快捷方式」权限未开启（弹层里可一键跳转开启），或稍后重试；也可回桌面长按空白处手动添加"
+};
+var pinOpen = false;
+function inApp(){
+  try { return !!(window.MetroWidget && window.MetroWidget.requestPinWidget); } catch(e){ return false; }
+}
+/* 刷新各尺寸行的「已添加」状态（打开弹层时、添加成功回传后各调一次） */
+function refreshPinDone(){
+  try {
+    var opts = document.querySelectorAll(".pin-opt");
+    for (var i=0;i<opts.length;i++){
+      var sz = opts[i].getAttribute("data-size"), has = false;
+      try { has = !!window.MetroWidget.hasWidget(sz); } catch(e){}
+      opts[i].classList.toggle("done", has);
+    }
+  } catch(e){}
+}
+function openPinSheet(){
+  if (!inApp()) return;
+  refreshPinDone();
+  $("pinMask").classList.add("show");
+  $("pinSheet").classList.add("show");
+  pinOpen = true;
+  try { history.pushState({v:"__pin__"}, ""); } catch(e){}
+}
+function closePinSheet(){
+  $("pinMask").classList.remove("show");
+  $("pinSheet").classList.remove("show");
+  pinOpen = false;
+}
+/* 关闭弹层并消费掉打开时压入的历史项（避免返回键残留一次空返回） */
+function dismissPinSheet(){
+  try {
+    if (history.state && history.state.v === "__pin__"){ history.back(); return; }
+  } catch(e){}
+  closePinSheet();
+}
+/* 点整行即添加（已添加过的尺寸点击无反应——桌面不会因此多出一张重复卡片）。
+   立刻收起弹层，结果由 MetroPinResult 回调统一 toast。 */
+function doPin(size, from){
+  if (from && from.classList.contains("done")) return;   // 已添加 → 不做任何反应
+  dismissPinSheet();
+  toast("正在添加到桌面…");
+  try {
+    window.MetroWidget.requestPinWidget(size);
+  } catch(e){
+    toast("添加失败：" + (e && e.message ? e.message : e));
+  }
+}
+/* 原生回传添加结果（MainActivity.jsPinResult → evaluateJavascript） */
+window.MetroPinResult = function(ok, reason){
+  if (ok){
+    toast(PIN_TXT.ok);
+    pushWidgetSnapshot();                 // 新落地的小部件立刻拿到最新收藏
+    refreshPinDone();                     // 该尺寸行立刻标记「已添加」，防重复点击
+  } else {
+    toast(PIN_TXT[reason] || PIN_TXT.unknown);
+  }
+};
+
 function toggleFav(k){
   if (favs[k]) delete favs[k];
   else favs[k] = Date.now();
@@ -1656,6 +1833,25 @@ function init(){
   autoCheckUpdate();
 
   $("btnPick").addEventListener("click", function(){ navTo("view-picker", {v:"picker"}); });
+  /* 添加到桌面：仅在 App 内且桌面支持一键添加时才显示入口 */
+  try {
+    if (inApp() && (!window.MetroWidget.canPinWidget || window.MetroWidget.canPinWidget())){
+      $("btnPin").classList.add("show");
+      document.body.classList.add("pin-shown");   // 内容区留白，避免被底部条遮挡
+      $("btnPin").addEventListener("click", openPinSheet);
+      $("pinMask").addEventListener("click", dismissPinSheet);
+      $("pinCancel").addEventListener("click", dismissPinSheet);
+      /* 「去开启」→ 系统应用详情页（开启「桌面快捷方式」权限） */
+      $("pinPerm").addEventListener("click", function(){
+        try { window.MetroWidget.openAppSettings(); } catch(e){}
+        dismissPinSheet();
+      });
+      var pops = document.querySelectorAll(".pin-opt");
+      for (var pi=0; pi<pops.length; pi++){
+        pops[pi].addEventListener("click", function(){ doPin(this.getAttribute("data-size"), this); });
+      }
+    }
+  } catch(e){}
   $("btnBackPicker").addEventListener("click", function(){ history.back(); });
   $("btnBackStation").addEventListener("click", function(){ history.back(); });
 
@@ -1663,6 +1859,9 @@ function init(){
   window.addEventListener("popstate", function(e){
     // 退出编辑态时我们会主动 history.back()，那次 popstate 不应再切换视图
     if (editSuppressPop){ editSuppressPop = false; return; }
+    // 「添加到桌面」弹层打开时：返回键先收起弹层
+    // （弹层打开时已 pushState，这次 popstate 只是回到打开前的状态，无需切视图）
+    if (pinOpen){ closePinSheet(); return; }
     // 编辑态下按系统返回手势/返回键：先退出编辑态，不切换视图、不退出应用
     if (editMode){ onEditBack(); return; }
     onPopState(e.state || {v:"home"});

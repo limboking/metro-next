@@ -9,16 +9,19 @@
    （实测：小米 launcher 会把 previewImage 拉伸铺满 widget 的 footprint 区域，
     图片宽高比与 footprint 不符时必然变形）。
 
-## 现行方案（v1.0.6）
-四轮实测结论：小米选择器的预览槽是**按高度截断的扁长区域**，previewImage 以
+## 现行方案（v1.0.6 定尺寸 / v1.0.25 重绘内容）
+实测结论：小米选择器的预览槽是**按高度截断的扁长区域**，previewImage 以
 fit-center 显示（不拉伸到 footprint）——
 - 竖高或正方形图（v1.0.3 4x / v1.0.5 1:1）一律被缩成「非常小一块」；
-- 2:1 宽图（v1.0.5 的 4×2 预览）能铺满显示、效果正常。
-因此 **所有预览图统一 2:1 宽幅**（588×292 px，drawable-nodpi）：
-  small  → 单站卡片居中
-  medium → 3 行列表
-  large  → 2 列 × 3 行网格（展示 6 站容量）
+- 2×2 用 146dp 方图能完整显示（预览槽高约 2 格）；
+- 4×2 / 4×4 统一 2:1 宽幅（294×146dp）：4×2 画 3 行列表，4×4 画 2 列 × 3 行网格。
 previewLayout 已从 info xml 移除（MIUI 不使用，徒增歧义）。
+
+v1.0.25：布局全面改版（小米小部件规范），预览图同步重绘：
+- 圆角 16dp → 20dp，四周安全区 10/4dp → 统一 16dp；
+- 内容区右侧额外让出 28dp（布局里 inner LinearLayout 的 paddingEnd），翻页列 24dp；
+- 2×2 的「时刻 · 倒计时」由合并一行改为左右分列；新增「下一站」行；
+- 字号对齐新布局（站名 15sp / 倒计时 17sp / 列表倒计时 18sp）。
 """
 import math
 import os
@@ -36,14 +39,26 @@ TXT_TERT = (0x9A, 0xA1, 0xAF, 255)
 ACCENT = (0x28, 0x50, 0xE6, 255)
 DIVIDER = (0xF0, 0xF2, 0xF5, 255)
 
-CORNER = 16 * D
-PAGER_W = 26 * D        # 与新布局一致：翻页列 26dp
-PAD_START = 10 * D      # 根布局 paddingStart 10dp
-PAD_END = 4 * D
+CORNER = 20 * D      # widget_bg.xml 圆角
+PAD = 10 * D         # 根布局横向安全区（与 widget_*.xml 一致）
+PAD_END_IN = 30 * D  # 内容列额外右侧内边距（给翻页列让位）
+PAGER_W = 26 * D     # 翻页列宽（pager_box）
+
+# 内容列右边界（模块级变量，各绘制函数引用）
+W_RIGHT = 0
 
 
 def f(size_sp, bold=False):
     return ImageFont.truetype(FONT_BOLD if bold else FONT_REG, size_sp * D)
+
+
+def trunc(draw, text, font, max_w):
+    """按最大宽度截断（加 …）；预览图是静态位图，必须自己处理挤压"""
+    if draw.textlength(text, font=font) <= max_w:
+        return text
+    while text and draw.textlength(text + "…", font=font) > max_w:
+        text = text[:-1]
+    return (text + "…") if text else ""
 
 
 def rounded_rect_alpha(size, radius, color):
@@ -54,11 +69,11 @@ def rounded_rect_alpha(size, radius, color):
     return img
 
 
-def chevron(draw, cx, cy, up=True, size=8 * D, width=2 * D):
+def chevron(draw, cx, cy, up=True, size=7 * D, width=2 * D):
     if up:
         pts = [(cx - size, cy + size * 0.5), (cx, cy - size * 0.5), (cx + size, cy + size * 0.5)]
     else:
-        pts = [(cx - size, cy - size * 0.5), (cx, cy + size * 0.5), (cx + size, cy - 0 + size * 0.5)]
+        pts = [(cx - size, cy - size * 0.5), (cx, cy + size * 0.5), (cx + size, cy - size * 0.5)]
     draw.line(pts, fill=TXT_TERT, width=width, joint="curve")
 
 
@@ -78,103 +93,102 @@ def refresh_icon(draw, cx, cy, r=6 * D, width=2 * D):
         draw.line([(px, py), (px - bx * L, py - by * L)], fill=TXT_TERT, width=width)
 
 
-def draw_pager(draw, W, H, page_text, refresh=True):
-    """右侧竖排：v1.0.19 起三尺寸统一为 刷新(30dp)/上箭头(30dp)/页码(16dp)/下箭头(30dp)。
-    refresh=False 保留兼容（旧预览形态）。整体垂直居中（与布局一致）。"""
-    if refresh:
-        box_h = (30 + 30 + 16 + 30) * D
-        top = (H - box_h) // 2
-        cx = W - PAGER_W // 2
-        refresh_icon(draw, cx, top + 15 * D)
-        chevron(draw, cx, top + 30 * D + 15 * D, up=True)
-        draw.text((cx, top + 60 * D + 16 * D // 2), page_text, font=f(10),
-                  fill=TXT_TERT, anchor="mm")
-        chevron(draw, cx, top + (60 + 16) * D + 30 * D // 2, up=False)
-    else:
-        box_h = (30 + 16 + 30) * D
-        top = (H - box_h) // 2
-        cx = W - PAGER_W // 2
-        chevron(draw, cx, top + 30 * D // 2, up=True)
-        draw.text((cx, top + 30 * D + 16 * D // 2), page_text, font=f(10),
-                  fill=TXT_TERT, anchor="mm")
-        chevron(draw, cx, top + (30 + 16) * D + 30 * D // 2, up=False)
+def draw_pager(draw, W, H, page_text):
+    """右侧竖排翻页列：刷新(26dp)/上箭头(26dp)/页码(16dp)/下箭头(26dp)，整体垂直居中。
+    列宽 24dp，右边缘与内容区右内边距对齐（根布局 paddingEnd=16dp）。"""
+    box_h = (26 + 26 + 16 + 26) * D
+    top = (H - box_h) // 2
+    cx = W - PAD - PAGER_W // 2
+    refresh_icon(draw, cx, top + 13 * D)
+    chevron(draw, cx, top + 26 * D + 13 * D, up=True)
+    draw.text((cx, top + 52 * D + 8 * D), page_text, font=f(11),
+              fill=TXT_TERT, anchor="mm")
+    chevron(draw, cx, top + (52 + 16) * D + 13 * D, up=False)
 
 
 def draw_list_row(draw, ry, row_h, name, line, cd, hhmm, color):
-    """一行（与 widget_list*.xml 样式一致）：[4dp 色条] 站名13sp粗+线路10sp灰 | 倒计时17sp+时刻10sp"""
-    bar_w, bar_h = 4 * D, 26 * D
+    """一行（与 widget_list3.xml 一致）：[4dp 色条] 站名14sp粗+线路11sp灰 │ 倒计时18sp+时刻11sp"""
+    global W_RIGHT
+    bar_w, bar_h = 4 * D, 18 * D
     by = ry + (row_h - bar_h) // 2
-    draw.rounded_rectangle([PAD_START, by, PAD_START + bar_w, by + bar_h],
+    draw.rounded_rectangle([PAD, by, PAD + bar_w, by + bar_h],
                            radius=bar_w // 2, fill=color)
-    tx = PAD_START + bar_w + 8 * D
+    tx = PAD + bar_w + 8 * D
     cy = ry + row_h // 2
     gap = 1 * D
-    nh, lh = 13 * D, 10 * D
+    nh, lh = 14 * D, 11 * D
     ty = cy - (nh + gap + lh) // 2
     draw.text((tx, ty + nh // 2), name, font=f(13, bold=True), fill=TXT_PRIMARY, anchor="lm")
     draw.text((tx, ty + nh + gap + lh // 2), line, font=f(10), fill=TXT_TERT, anchor="lm")
 
-    rx = W_RIGHT
-    mh, th = 17 * D, 10 * D
+    mh, th = 18 * D, 11 * D
     ty2 = cy - (mh + gap + th) // 2
-    draw.text((rx, ty2 + mh // 2), cd, font=f(17, bold=True), fill=ACCENT, anchor="rm")
-    draw.text((rx, ty2 + mh + gap + th // 2), hhmm, font=f(10), fill=TXT_TERT, anchor="rm")
-
-
-# 内容列右边界 = 画布宽 - 翻页列 - paddingEnd（模块级变量，draw_list_row 引用）
-W_RIGHT = 0
+    draw.text((W_RIGHT, ty2 + mh // 2), cd, font=f(17, bold=True), fill=ACCENT, anchor="rm")
+    draw.text((W_RIGHT, ty2 + mh + gap + th // 2), hhmm, font=f(10), fill=TXT_TERT, anchor="rm")
 
 
 def gen_list_preview(path, H_dp, rows, page_text):
-    """列表类预览：rows = [(站名, 线路·方向, 倒计时, 时刻, 线路色)]，行高均分（与 v1.0.5 布局一致）"""
+    """4×2 列表预览：rows = [(站名, 线路·方向, 倒计时, 时刻, 线路色)]，行高均分"""
     global W_RIGHT
     W, H = 294 * D, H_dp * D
-    W_RIGHT = W - PAGER_W - PAD_END
+    W_RIGHT = W - PAD - PAD_END_IN
     img = rounded_rect_alpha((W, H), CORNER, BG)
     draw = ImageDraw.Draw(img)
 
     n = len(rows)
-    content_w = W - PAGER_W - PAD_START - PAD_END
-    row_h = (H - (n - 1) * 1 * D) // n          # 行均分（weight=1 效果）
+    row_h = (H - 2 * PAD - (n - 1) * 1 * D) // n      # 行均分（weight=1 效果）
     for i, (name, line, cd, hhmm, color) in enumerate(rows):
-        ry = i * (row_h + 1 * D)
+        ry = PAD + i * (row_h + 1 * D)
         draw_list_row(draw, ry, row_h, name, line, cd, hhmm, color)
         if i < n - 1:
             dy = ry + row_h
-            draw.rectangle([PAD_START, dy, W_RIGHT, dy + 1 * D - 1], fill=DIVIDER)
+            draw.rectangle([PAD, dy, W_RIGHT, dy + 1 * D - 1], fill=DIVIDER)
 
-    draw_pager(draw, W, H, page_text, refresh=True)
+    draw_pager(draw, W, H, page_text)
     img.save(path)
 
 
 def gen_small_preview(path):
-    """2×2 预览：1:1 方图（292×292）。
-    v1.0.5/v1.0.7 实测：预览槽高约 2 格（≈146dp），146dp 方图能完整显示（只有
-    294dp 的 4×4 方图会被截半）——所以 2×2 用方图、仅 4×4 需要用 2:1 宽图。
-    内容与 v1.0.9 新版 2×2 排版一致：站名 / 线路·方向 / 下一站 / 最近 3 班。"""
-    W = H = 146 * D
+    """2×2 预览：160dp 方图（320×320px）。
+    画布取真机 2×2 的常见实际占位（约 160dp，大于 minWidth=110dp）——
+    用 146dp 画会因为内容区被安全区+翻页列挤压而截断，与真机表现不符。
+    内容与 widget_small.xml 一致：
+      色条+站名 / 线路·方向 / 下一站 / 分割线 / 最近 3 班（「时刻 · 距发车」合并单行，
+      首班强调色、后两班次级灰——2×2 宽度放不下分列，v1.0.25 实测回退）。"""
+    W = H = 160 * D
     img = rounded_rect_alpha((W, H), CORNER, BG)
     draw = ImageDraw.Draw(img)
-    x = PAD_START
+    x = PAD
     color = (0xF5, 0xD8, 0x00, 255)
 
-    # 顶：色条 + 站名
-    draw.rounded_rectangle([x, 8 * D, x + 4 * D, 8 * D + 14 * D], radius=2 * D, fill=color)
-    draw.text((x + 4 * D + 6 * D, 8 * D + 7 * D), "呼家楼",
+    # ① 色条 + 站名（色条 4×18dp，站名 15sp 粗，marginStart 8dp）
+    y = PAD
+    draw.rounded_rectangle([x, y, x + 4 * D, y + 18 * D], radius=2 * D, fill=color)
+    draw.text((x + 4 * D + 8 * D, y + 9 * D), "呼家楼",
               font=f(14, bold=True), fill=TXT_PRIMARY, anchor="lm")
-    # 线路 · 方向
-    draw.text((x, 29 * D), "6号线 · 开往 潞阳", font=f(10), fill=TXT_TERT, anchor="lm")
-    # 下一站
-    draw.text((x, 42 * D), "下一站 十里堡", font=f(10), fill=TXT_TERT, anchor="lm")
+    # ② 线路 · 方向（11.5sp，marginTop 3dp）
+    y += 18 * D + 3 * D
+    draw.text((x, y + 6 * D), "6号线 · 开往 潞城", font=f(10), fill=TXT_TERT, anchor="lm")
+    # ③ 下一站（11.5sp，marginTop 2dp）
+    y += 12 * D + 2 * D
+    draw.text((x, y + 6 * D), "下一站 十里堡", font=f(10), fill=TXT_TERT, anchor="lm")
+    # ④ 分割线（marginTop 8dp）
+    y += 12 * D + 8 * D
+    draw.rectangle([x, y, W - PAD - PAGER_W - 4 * D, y + 1 * D - 1], fill=DIVIDER)
 
-    # 下部 3 段：最近 3 班（均分，与 v1.0.9 布局一致）
-    top = 56 * D
-    seg = (H - top) // 3
-    draw.text((x, top + seg // 2), "15:04 · 3 分钟", font=f(16, bold=True), fill=ACCENT, anchor="lm")
-    draw.text((x, top + seg + seg // 2), "15:11 · 10 分钟", font=f(12), fill=TXT_SECOND, anchor="lm")
-    draw.text((x, top + 2 * seg + seg // 2), "15:19 · 18 分钟", font=f(12), fill=TXT_SECOND, anchor="lm")
+    # ⑤ 最近 3 班：三行均分剩余高度，合并单行（与布局一致，超出翻页列宽度则截断）
+    top = y + 1 * D
+    seg = (H - PAD - top) // 3
+    text_right = W - PAD - PAGER_W - 2 * D          # 内容可用右界（给翻页列让位）
+    rows = [("15:04 · 3 分钟", 16, True, ACCENT),
+            ("15:11 · 10 分钟", 12, False, TXT_SECOND),
+            ("15:19 · 18 分钟", 12, False, TXT_SECOND)]
+    for i, (txt, fs, bold, col) in enumerate(rows):
+        ft = f(fs, bold=bold)
+        draw.text((x, top + i * seg + seg // 2),
+                  trunc(draw, txt, ft, text_right - x), font=ft, fill=col, anchor="lm")
 
-    draw_pager(draw, W, H, "1/7", refresh=True)
+    draw_pager(draw, W, H, "1/7")
     img.save(path)
 
 
@@ -194,9 +208,9 @@ def gen_large_preview(path):
         ("望京东", "15号线 · 开往 俸伯", "18 分钟", PURPLE),
     ]
     cols, rows_n = 2, 3
-    pad_x, pad_y = 12 * D, 6 * D
+    pad_x, pad_y = PAD, 6 * D
     col_gap = 24 * D
-    grid_right = W - PAGER_W - 8 * D                     # 网格区右边界（给翻页列让位）
+    grid_right = W - PAD - PAD_END_IN                 # 网格区右边界（给翻页列让位）
     cell_w = (grid_right - pad_x - col_gap) // 2
     cell_h = (H - 2 * pad_y) // rows_n
 
@@ -215,9 +229,7 @@ def gen_large_preview(path):
         draw.text((x0 + cell_w - 4 * D, ny), cd, font=f(12, bold=True), fill=ACCENT, anchor="rm")
         # 第二行：线路 · 方向
         draw.text((tx, ny + 13 * D), line, font=f(9), fill=TXT_TERT, anchor="lm")
-        # 行分割线（横向贯穿两列，最后一行不画）
-        if r < rows_n - 1 and c == 0:
-            pass
+
     for r in range(rows_n - 1):
         dy = pad_y + (r + 1) * cell_h
         draw.rectangle([pad_x, dy, grid_right, dy + D - 1], fill=DIVIDER)
@@ -225,7 +237,7 @@ def gen_large_preview(path):
     vx = pad_x + cell_w + col_gap // 2
     draw.rectangle([vx, pad_y + 4 * D, vx + 2 * D - 1, H - pad_y - 4 * D], fill=DIVIDER)
 
-    draw_pager(draw, W, H, "1/2", refresh=True)
+    draw_pager(draw, W, H, "1/2")
     img.save(path)
 
 
@@ -239,7 +251,7 @@ PURPLE = (0x60, 0x2D, 0x86, 255)   # 15号线 (示意)
 if __name__ == "__main__":
     os.makedirs(OUT_DIR, exist_ok=True)
 
-    # 2×2 预览（2:1 宽幅，单站卡片）
+    # 2×2 预览（146dp 方图，单站卡片）
     p = os.path.join(OUT_DIR, "widget_preview_small.png")
     gen_small_preview(p)
     print("small ", Image.open(p).size, os.path.getsize(p), "bytes")

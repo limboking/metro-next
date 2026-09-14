@@ -2,10 +2,17 @@ package com.metronext.metro
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.app.AlertDialog
+import android.appwidget.AppWidgetManager
+import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
+import android.provider.Settings
+import android.os.Handler
+import android.os.Looper
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
@@ -37,6 +44,9 @@ import com.metronext.metro.widget.refreshAllWidgets
 class MainActivity : Activity() {
 
     private lateinit var web: WebView
+
+    /** 跨线程回主线程（添加到桌面结果回传网页 / 兜底判定轮询） */
+    private val mainHandler by lazy { Handler(Looper.getMainLooper()) }
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -143,7 +153,118 @@ class MainActivity : Activity() {
         if (this::web.isInitialized) web.onResume()
     }
 
+    // ───────────── 网页「添加到桌面」：requestPinAppWidget 链路 ─────────────
+
+    /** 兜底判定：小米部分机型不回调结果，改为延时比对 appWidgetId 数量 */
+    private val pinDelays = longArrayOf(700L, 1500L, 3000L)
+
+    /** size: small / medium / large */
+    private fun requestPin(size: String) {
+        val cls = WidgetPin.clsOf(size)
+        if (cls == null) {
+            jsPinResult(false, "bad_size")
+            return
+        }
+        val mgr = AppWidgetManager.getInstance(this)
+        val supported = try {
+            mgr.isRequestPinAppWidgetSupported
+        } catch (t: Throwable) {
+            WidgetLog.append(this, "isRequestPinAppWidgetSupported 异常", t)
+            false
+        }
+        if (!supported) {
+            jsPinResult(false, "unsupported")
+            return
+        }
+        // 小米「桌面快捷方式」权限被明确拒绝时，requestPinAppWidget 会静默失败
+        // （无弹窗、无回调、不落桌面）——先弹引导，确认后直达权限页
+        if (WidgetPin.isShortcutDenied(this)) {
+            WidgetLog.append(this, "桌面快捷方式权限被拒绝(AppOps mode=${WidgetPin.shortcutOpMode(this)}) → 弹引导")
+            jsPinResult(false, "no_perm")
+            showPermDialog(
+                "未开启「桌面快捷方式」权限，添加会静默失败。\n\n去开启后请回到本页重新点添加。"
+            )
+            return
+        }
+        val cn = ComponentName(this, cls)
+        val before = mgr.getAppWidgetIds(cn).size
+        WidgetPin.listener = { ok, reason -> jsPinResult(ok, reason) }
+        val started = try {
+            mgr.requestPinAppWidget(cn, null, WidgetPin.callbackIntent(this))
+        } catch (t: Throwable) {
+            WidgetLog.append(this, "requestPinAppWidget 异常", t)
+            false
+        }
+        if (!started) {
+            WidgetPin.listener = null
+            jsPinResult(false, "unsupported")
+            return
+        }
+        WidgetLog.append(this, "requestPin 已发起: size=$size, 已有 $before 个")
+        pinWatch(cls, before, 0)
+    }
+
+    private fun pinWatch(cls: Class<*>, before: Int, attempt: Int) {
+        mainHandler.postDelayed({
+            if (WidgetPin.listener == null) return@postDelayed   // 已被回调处理
+            val now = try {
+                AppWidgetManager.getInstance(this).getAppWidgetIds(ComponentName(this, cls)).size
+            } catch (_: Throwable) {
+                before
+            }
+            when {
+                now > before -> {
+                    WidgetPin.listener?.invoke(true, "ok")
+                    WidgetPin.listener = null
+                }
+                attempt < pinDelays.lastIndex -> pinWatch(cls, before, attempt + 1)
+                else -> {
+                    // 超时不判失败：用户可能还停留在系统确认框，网页侧给中性提示。
+                    // 小米系设备没有系统确认框（要么直接落桌面要么静默忽略），
+                    // 超时 ≈ 被静默忽略 → 弹「桌面快捷方式」权限引导。
+                    WidgetPin.listener?.invoke(false, "unknown")
+                    WidgetPin.listener = null
+                    if (WidgetPin.isXiaomiLike()) {
+                        showPermDialog(
+                            "桌面没有响应添加请求，很可能是未开启「桌面快捷方式」权限。\n\n去开启后请回到本页重新点添加；也可以回到桌面长按空白处手动添加。"
+                        )
+                    }
+                }
+            }
+        }, pinDelays[attempt])
+    }
+
+    /** 「桌面快捷方式」权限引导弹窗：确认后直达小米安全中心的本应用权限页 */
+    private fun showPermDialog(msg: String) {
+        if (isFinishing || isDestroyed) return
+        AlertDialog.Builder(this)
+            .setTitle("添加到桌面")
+            .setMessage(msg)
+            .setPositiveButton("去开启") { _, _ -> WidgetPin.openPermEditor(this) }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    /** 把结果回传给网页：window.MetroPinResult(ok, reason) */
+    private fun jsPinResult(ok: Boolean, reason: String) {
+        if (ok) {
+            try {
+                refreshAllWidgets(this)
+            } catch (_: Throwable) {
+            }
+        }
+        mainHandler.post {
+            if (!this::web.isInitialized) return@post
+            // reason 全为内部固定 ASCII 常量，直接拼接安全
+            web.evaluateJavascript(
+                "window.MetroPinResult && window.MetroPinResult($ok, \"$reason\")",
+                null
+            )
+        }
+    }
+
     override fun onDestroy() {
+        WidgetPin.listener = null
         if (this::web.isInitialized) {
             web.stopLoading()
             web.webChromeClient = null
@@ -156,7 +277,9 @@ class MainActivity : Activity() {
      * 网页 → 原生的桥接：接收收藏站点的精简快照，供桌面小部件读取。
      * 小部件不能用 WebView，也不适合读 1.1MB 全量表，所以只传收藏相关的班次（通常几十 KB）。
      */
-    private class WidgetBridge(private val ctx: Context) {
+    private class WidgetBridge(private val act: MainActivity) {
+        private val ctx: Context get() = act
+
         @JavascriptInterface
         fun onSnapshot(json: String) {
             WidgetData.save(ctx, json)
@@ -165,6 +288,51 @@ class MainActivity : Activity() {
             try {
                 refreshAllWidgets(ctx)
             } catch (_: Exception) {
+            }
+        }
+
+        /**
+         * 网页「添加到桌面」：size = small / medium / large。
+         * 走标准 requestPinAppWidget，无需权限、无需送审；小米上直接落到桌面。
+         * 结果异步回传 window.MetroPinResult(ok, reason)。
+         */
+        @JavascriptInterface
+        fun requestPinWidget(size: String) {
+            act.mainHandler.post { act.requestPin(size) }
+        }
+
+        /** 桌面上是否已有该尺寸的小部件（网页侧用于打勾提示） */
+        @JavascriptInterface
+        fun hasWidget(size: String): Boolean = try {
+            WidgetPin.hasSize(ctx, size)
+        } catch (_: Throwable) {
+            false
+        }
+
+        /** 当前桌面是否支持一键添加（不支持时网页应隐藏该入口） */
+        @JavascriptInterface
+        fun canPinWidget(): Boolean = try {
+            AppWidgetManager.getInstance(ctx).isRequestPinAppWidgetSupported
+        } catch (_: Throwable) {
+            false
+        }
+
+        /**
+         * 跳转到系统「应用详情」页。
+         * 小米/红米上 requestPinAppWidget 依赖「桌面快捷方式」特殊权限：
+         * 设置 → 应用设置 → 应用管理 → Metro Next → 桌面快捷方式（允许）。
+         * 未授权时 requestPinAppWidget 会静默失败（无弹窗、无回调、不落桌面）。
+         */
+        @JavascriptInterface
+        fun openAppSettings() {
+            try {
+                val i = Intent(
+                    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    Uri.fromParts("package", ctx.packageName, null)
+                )
+                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                ctx.startActivity(i)
+            } catch (_: Throwable) {
             }
         }
 

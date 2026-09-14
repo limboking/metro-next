@@ -81,6 +81,18 @@ abstract class BaseWidget : AppWidgetProvider() {
 
     override fun onReceive(ctx: Context, intent: Intent) {
         try {
+            // ★ 小米小部件「曝光刷新」：用户滑到小部件所在页面时，系统主动拉起
+            // :widgetProvider 进程并发此广播——这是 HyperOS 上唯一能绕开
+            // 「对齐唤醒推迟闹钟」的刷新时机，因此优先处理。
+            // super.onReceive 只认原生 ACTION_APPWIDGET_UPDATE，必须在这里显式分发。
+            if (intent.action == ACTION_MIUI_EXPOSURE) {
+                val ids = intent.getIntArrayExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS)
+                if (ids != null && ids.isNotEmpty()) {
+                    WidgetLog.append(ctx, "曝光刷新: ${ids.contentToString()}")
+                    onUpdate(ctx, AppWidgetManager.getInstance(ctx), ids)
+                    return
+                }
+            }
             super.onReceive(ctx, intent)
             if (intent.action == ACTION_PAGE) {
                 val id = intent.getIntExtra(
@@ -225,13 +237,14 @@ abstract class BaseWidget : AppWidgetProvider() {
         mgr.updateAppWidget(id, views)
     }
 
+    /** 无收藏 / 无快照时的占位行（规范要求：无内容场景要有占位与说明文字） */
     private fun emptyRow(ctx: Context) = WidgetData.Row(
         name = ctx.getString(R.string.widget_no_fav),
         color = Color.LTGRAY,
-        lineDesc = "",
+        lineDesc = ctx.getString(R.string.widget_open_hint),
         mark = "",
-        hhmm = "--:--",
-        countdown = ctx.getString(R.string.widget_open_hint),
+        hhmm = "",
+        countdown = "",
         urgent = false,
         absMin = Int.MAX_VALUE
     )
@@ -246,6 +259,8 @@ abstract class BaseWidget : AppWidgetProvider() {
     // ───────────────── 2×2（widget_small.xml，控件 id 为 w_*） ─────────────────
     // v1.0.15：倒计时回到纯文本「时刻 · 距发车」（Chronometer 在小米 launcher 上
     // 时间基准异常，已废弃），实时性由 WidgetTick 分钟对齐闹钟保证。
+    // v1.0.25：三班回退合并单行「时刻 · 距发车」——2×2 只有 110~160dp 宽还要让出
+    // 翻页列，「时刻/倒计时」分列必然截断（预览图实测实锤）。首班强调色，后两班次级灰。
     // 下一站/第二三班无数据时动态 GONE，不留空位。
 
     private fun bindSmall(ctx: Context, views: RemoteViews, row: WidgetData.Row?) {
@@ -263,18 +278,52 @@ abstract class BaseWidget : AppWidgetProvider() {
         }
 
         val ups = r.upcoming
-        // 首班：无班次时退回静态文案；其余班次：无则 GONE 不留空位
-        val danger = ctx.getColor(R.color.widget_danger)
-        views.setTextViewText(R.id.w_up1, if (ups.isEmpty()) r.countdown else upcomingText(ups[0]))
-        views.setViewVisibility(R.id.w_up2, if (ups.size >= 2) View.VISIBLE else View.GONE)
-        views.setViewVisibility(R.id.w_up3, if (ups.size >= 3) View.VISIBLE else View.GONE)
-        if (ups.size >= 2) views.setTextViewText(R.id.w_up2, upcomingText(ups[1]))
-        if (ups.size >= 3) views.setTextViewText(R.id.w_up3, upcomingText(ups[2]))
+        val now = nowOperatingMinute()
 
-        // 首班 = 主色（紧急变红）；其余班次 = 次要灰
-        views.setTextColor(R.id.w_up1, if (r.urgent) danger else ctx.getColor(R.color.widget_accent))
-        views.setTextColor(R.id.w_up2, ctx.getColor(R.color.widget_text_secondary))
-        views.setTextColor(R.id.w_up3, ctx.getColor(R.color.widget_text_secondary))
+        // 首班：合并单行「时刻 · 距发车」。紧急态（≤1 分钟）与常态是叠放的两个
+        // TextView，靠显隐切换——颜色必须写在布局 XML 里（@color/widget_accent、
+        // @color/widget_danger），深色模式才能跟随 values-night 正确切换。
+        if (ups.isEmpty()) {
+            setCountdown(views, R.id.w_up1, R.id.w_up1_d, r.countdown, false)
+        } else {
+            setCountdown(views, R.id.w_up1, R.id.w_up1_d, upcomingText(ups[0]), ups[0].absMin - now <= 1)
+        }
+
+        // 后两班：无则整行留空（不留误导性文案）
+        bindSmallUp(views, ups, 1, R.id.w_up2)
+        bindSmallUp(views, ups, 2, R.id.w_up3)
+    }
+
+    /**
+     * 叠放的两个倒计时控件：写同一份文案，按 urgent 决定显示哪一个。
+     * 这是「深色模式只能 XML 静态适配」约束下的紧急态方案——
+     * 一旦用 setTextColor 动态设色，小米切换深色模式时用缓存 RemoteViews 重建，
+     * 颜色就再也不会更新。
+     */
+    private fun setCountdown(
+        views: RemoteViews, idNormal: Int, idDanger: Int,
+        text: String, urgent: Boolean
+    ) {
+        views.setTextViewText(idNormal, text)
+        views.setTextViewText(idDanger, text)
+        views.setViewVisibility(idNormal, if (urgent) View.GONE else View.VISIBLE)
+        views.setViewVisibility(idDanger, if (urgent) View.VISIBLE else View.GONE)
+    }
+
+    /** 2×2 的后续班次行：合并单行「时刻 · 距发车」，无数据时 GONE */
+    private fun bindSmallUp(views: RemoteViews, ups: List<WidgetData.Upcoming>, idx: Int, idCd: Int) {
+        val has = ups.size > idx
+        views.setViewVisibility(idCd, if (has) View.VISIBLE else View.GONE)
+        if (!has) return
+        views.setTextViewText(idCd, upcomingText(ups[idx]))
+    }
+
+    // ───────────── 倒计时文案（v1.0.15：纯文本，分钟粒度） ─────────────
+
+    /** 2×2 合并行：「时刻 · 距发车」，如 "15:04 · 3 分钟"；无班次只显示时刻 */
+    private fun upcomingText(up: WidgetData.Upcoming): String {
+        if (up.absMin == Int.MAX_VALUE) return up.hhmm
+        return "${up.hhmm} · ${waitText(up.absMin - nowOperatingMinute())}"
     }
 
     // ───────────── 4×2 / 4×4（widget_list*.xml，控件 id 为 row*_line / time / cd） ─────────────
@@ -298,12 +347,9 @@ abstract class BaseWidget : AppWidgetProvider() {
         views.setTextViewText(ids.line, row.lineWithMark())
         // 时刻小字（次要信息）
         views.setTextViewText(ids.time, row.hhmm)
-        // 倒计时大字：WidgetData 已按当前时间算好的文案（X 分钟 / X 小时 Y 分 / 已进站）
-        views.setTextViewText(ids.cd, row.countdown)
-
-        val danger = ctx.getColor(R.color.widget_danger)
-        views.setTextColor(ids.cd, if (row.urgent) danger else ctx.getColor(R.color.widget_accent))
-        views.setTextColor(ids.time, ctx.getColor(R.color.widget_text_tertiary))
+        // 倒计时大字：WidgetData 已按当前时间算好的文案（X 分钟 / X 小时 Y 分 / 已进站）。
+        // 颜色由布局 XML 决定（accent / danger 两个叠放控件按 urgent 切显隐）。
+        setCountdown(views, ids.cd, ids.cdD, row.countdown, row.urgent)
     }
 
     // ───────────── 倒计时文案（v1.0.15：纯文本，分钟粒度） ─────────────
@@ -324,14 +370,6 @@ abstract class BaseWidget : AppWidgetProvider() {
         var m = c.get(Calendar.HOUR_OF_DAY) * 60 + c.get(Calendar.MINUTE)
         if (m < 270) m += 1440
         return m
-    }
-
-    /**
-     * 2×2 三行：显示「时刻 · 距发车」文本，如 "15:04 · 3 分钟"。
-     */
-    private fun upcomingText(up: WidgetData.Upcoming): String {
-        if (up.absMin == Int.MAX_VALUE) return up.hhmm
-        return "${up.hhmm} · ${waitText(up.absMin - nowOperatingMinute())}"
     }
 
     private fun pageIntent(ctx: Context, id: Int, delta: Int): PendingIntent {
@@ -374,6 +412,8 @@ abstract class BaseWidget : AppWidgetProvider() {
         const val ACTION_PAGE = "com.metronext.metro.widget.ACTION_PAGE"
         const val ACTION_REFRESH = "com.metronext.metro.widget.ACTION_REFRESH"
         const val EXTRA_DELTA = "delta"
+        /** 小米小部件曝光刷新（Manifest 里已声明该 action） */
+        const val ACTION_MIUI_EXPOSURE = "miui.appwidget.action.APPWIDGET_UPDATE"
     }
 }
 
@@ -404,10 +444,13 @@ class WidgetLarge : BaseWidget() {
  * 一行站点对应的控件 id（div 为 0 表示该行是最后一行、其后没有分割线）。
  * 必须是 public（默认可见性）：BaseWidget.rowIds() 是 protected open，
  * 返回类型若是 private-in-file / internal 会触发 EXPOSED_FUNCTION_RETURN_TYPE。
+ *
+ * cdD：与 cd 叠放的「紧急色」副本（默认 GONE）。深色模式只能 XML 静态适配，
+ * 不能用 setTextColor 切换颜色，所以紧急态改成切这两个控件的显隐。
  */
 class RowIds(
     val row: Int, val bar: Int, val name: Int,
-    val line: Int, val time: Int, val cd: Int, val div: Int
+    val line: Int, val time: Int, val cd: Int, val div: Int, val cdD: Int
 )
 
 /**
@@ -415,19 +458,21 @@ class RowIds(
  * RemoteViews 对不存在的 id 调 setXxx 不会立刻报错，但 updateAppWidget 应用布局时会抛异常
  * → launcher 显示「载入窗口小部件时出现问题」。
  */
+// 注意：widget_list6.xml 由 scripts/gen_widget_list6.py 从 widget_list3.xml 生成，
+// 两侧行结构与 id 命名必须一致，否则会出现只在 4×4 复现的渲染问题。
 private val IDS_3 = arrayOf(                       // widget_list3.xml：3 行 + div1/div2
-    RowIds(R.id.row1, R.id.row1_bar, R.id.row1_name, R.id.row1_line, R.id.row1_time, R.id.row1_cd, R.id.div1),
-    RowIds(R.id.row2, R.id.row2_bar, R.id.row2_name, R.id.row2_line, R.id.row2_time, R.id.row2_cd, R.id.div2),
-    RowIds(R.id.row3, R.id.row3_bar, R.id.row3_name, R.id.row3_line, R.id.row3_time, R.id.row3_cd, 0)
+    RowIds(R.id.row1, R.id.row1_bar, R.id.row1_name, R.id.row1_line, R.id.row1_time, R.id.row1_cd, R.id.div1, R.id.row1_cd_d),
+    RowIds(R.id.row2, R.id.row2_bar, R.id.row2_name, R.id.row2_line, R.id.row2_time, R.id.row2_cd, R.id.div2, R.id.row2_cd_d),
+    RowIds(R.id.row3, R.id.row3_bar, R.id.row3_name, R.id.row3_line, R.id.row3_time, R.id.row3_cd, 0, R.id.row3_cd_d)
 )
 
 private val IDS_6 = arrayOf(                       // widget_list6.xml：6 行 + div1~div5
-    RowIds(R.id.row1, R.id.row1_bar, R.id.row1_name, R.id.row1_line, R.id.row1_time, R.id.row1_cd, R.id.div1),
-    RowIds(R.id.row2, R.id.row2_bar, R.id.row2_name, R.id.row2_line, R.id.row2_time, R.id.row2_cd, R.id.div2),
-    RowIds(R.id.row3, R.id.row3_bar, R.id.row3_name, R.id.row3_line, R.id.row3_time, R.id.row3_cd, R.id.div3),
-    RowIds(R.id.row4, R.id.row4_bar, R.id.row4_name, R.id.row4_line, R.id.row4_time, R.id.row4_cd, R.id.div4),
-    RowIds(R.id.row5, R.id.row5_bar, R.id.row5_name, R.id.row5_line, R.id.row5_time, R.id.row5_cd, R.id.div5),
-    RowIds(R.id.row6, R.id.row6_bar, R.id.row6_name, R.id.row6_line, R.id.row6_time, R.id.row6_cd, 0)
+    RowIds(R.id.row1, R.id.row1_bar, R.id.row1_name, R.id.row1_line, R.id.row1_time, R.id.row1_cd, R.id.div1, R.id.row1_cd_d),
+    RowIds(R.id.row2, R.id.row2_bar, R.id.row2_name, R.id.row2_line, R.id.row2_time, R.id.row2_cd, R.id.div2, R.id.row2_cd_d),
+    RowIds(R.id.row3, R.id.row3_bar, R.id.row3_name, R.id.row3_line, R.id.row3_time, R.id.row3_cd, R.id.div3, R.id.row3_cd_d),
+    RowIds(R.id.row4, R.id.row4_bar, R.id.row4_name, R.id.row4_line, R.id.row4_time, R.id.row4_cd, R.id.div4, R.id.row4_cd_d),
+    RowIds(R.id.row5, R.id.row5_bar, R.id.row5_name, R.id.row5_line, R.id.row5_time, R.id.row5_cd, R.id.div5, R.id.row5_cd_d),
+    RowIds(R.id.row6, R.id.row6_bar, R.id.row6_name, R.id.row6_line, R.id.row6_time, R.id.row6_cd, 0, R.id.row6_cd_d)
 )
 
 /** 页码持久化：按 appWidgetId 独立存储 */
@@ -494,7 +539,6 @@ fun hasAnyWidget(ctx: Context): Boolean {
  */
 object WidgetTick {
 
-    /** 有班次时的兜底补刷间隔（10 分钟） */
     /** 无班次（收班后）时的兜底补刷间隔（30 分钟） */
     private const val IDLE_CATCHUP_MS = 30 * 60_000L
 
@@ -511,6 +555,9 @@ object WidgetTick {
         // 沿革：Chronometer 实时秒级（v1.0.13/14）在小米 launcher 上时间基准异常
         // （实测 496579:35:38 假值），已废弃回退纯文本。
         val now = System.currentTimeMillis()
+        // v1.0.26：回到纯分钟对齐。此前为小米降频到 15 分钟，前提是「曝光刷新」
+        // 能覆盖实时场景；但曝光刷新属于小米小部件专属通道，未送审的自用包声明
+        // miuiWidget 会导致小部件直接载入失败（v1.0.25 实锤），故已回退原生通道。
         val nextMinute = (now / 60000L + 1) * 60000L
         val departure = nextDepartureMillis(WidgetData.rows(ctx))
         val at = if (departure != null) {

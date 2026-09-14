@@ -13,15 +13,15 @@ android {
         targetSdk = 34
         // 每次出包必须递增：debug 包签名相同，versionCode 不变时在「应用信息」里
         // 看不出装的到底是哪一版，排查「改了没生效」会浪费大量时间。
-        versionCode = 24
-        versionName = "1.0.24"
+        versionCode = 30
+        versionName = "1.0.30"
     }
 
     // 默认调试签名库在 C:\Users\King\.android\debug.keystore，其 .lock 被占用导致
     // "AccessDeniedException: debug.keystore.lock"。改用 D: 盘独立副本彻底绕开该锁。
     signingConfigs {
         getByName("debug") {
-            storeFile = file("D:/metro_debug.keystore")
+            storeFile = file("D:/metro_build/metro_debug.keystore")
             storePassword = "android"
             keyAlias = "androiddebugkey"
             keyPassword = "android"
