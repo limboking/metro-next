@@ -10,6 +10,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.graphics.Color
+import android.graphics.Paint
+import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
 import com.metronext.metro.MainActivity
@@ -30,6 +32,12 @@ import java.util.Calendar
  * - v1.0.19 起三个布局控件 id 完全一致（w_refresh + pager_*），render() 无分支。
  * - v1.0.24 起末页从队尾回退取满（无孤儿页）：收藏数非每页整数倍时，末页
  *   与前一页有少量重叠，但每页都是满行。
+ * - v1.0.32 排版定稿（信息量跨设备/跨收藏数一致，只调排版不增减内容）：
+ *   ① 行数恒等于 perPage，收藏不足一页时空行**保留占位**（不再 GONE）→ 每行恒占
+ *      「卡高 ÷ perPage」一格，内容贴顶、留白集中在底部，行距不随收藏多少变化；
+ *   ② 长文案由 TextFit 按 launcher 实测格子宽降字号（列表 10→9→8sp、2×2 站名 13→11sp），
+ *      2×2 的「线路 · 开往 X」放不下就断在「开往」后换两行——不截断；
+ *   ③ 2×2 班次行由合并单行改**两列**（左时刻 / 右倒计时，右对齐成列）。
  */
 abstract class BaseWidget : AppWidgetProvider() {
 
@@ -55,6 +63,99 @@ abstract class BaseWidget : AppWidgetProvider() {
     protected open fun rowIds(i: Int): RowIds = throw UnsupportedOperationException(
         "rowIds must be overridden by list-based widgets"
     )
+
+    // ───────────────────── 文案自适应（v1.0.32） ─────────────────────
+
+    /**
+     * 按小部件**实际格子宽度**实测文本宽度，放不下就降字号——而不是截断。
+     *
+     * 为什么必须实测：格子宽由 launcher 决定，各机型/各网格不同（朋友机 2×2 只有 ~122dp，
+     * 本机更宽）；CJK 1em、数字 0.5em 上下的 em 估算必然有偏差。Paint 实测与 TextView
+     * 同字体、同 sp→px 换算，最准。
+     *
+     * 格子宽来源：launcher 通过 onAppWidgetOptionsChanged 给的 dp（缓存进 WidgetPrefs）；
+     * 首次渲染还没拿到时用 info xml 声明的最小宽（2×2=125dp / 列表=250dp）——那是 launcher
+     * 保证的下限，偏保守（字号可能偏小一档），拿到真实值后下次渲染即修正。
+     */
+    private inner class TextFit(private val ctx: Context, cellWDp: Int) {
+        private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+        /**
+         * 内容列可用宽（dp）= 格子宽 − 根布局左右 padding − （内容列 paddingEnd，兼作翻页列位置）。
+         * 翻页列落在 paddingEnd 让出的空间里、与文字左右相邻不重叠（2×2：20dp 列宽 = 20dp
+         * paddingEnd；列表：26dp 列宽落在 30dp paddingEnd 内，余 4dp 间隙）。
+         */
+        val contentDp: Float = if (perPage == 1) {
+            (cellWDp - 8 - 4 - 20).toFloat()      // 根 padStart8 + padEnd4 + 内容列 padEnd20
+        } else {
+            (cellWDp - 10 - 4 - 30).toFloat()     // 根 padStart10 + padEnd4 + 内容列 padEnd30
+        }
+
+        /**
+         * 站名可用宽（再扣 4dp 色条 + 8dp 间距）。**仅 2×2 用**：
+         * 列表的站名与「线路 · 方向」同处左侧文字列，可用宽 = 文字列宽（见 lineAvailDp）。
+         */
+        val nameDp: Float get() = contentDp - 12f
+
+        /**
+         * 文本在 sp 字号下的宽度（px）。
+         * 用 TypedValue.applyDimension 而不用 scaledDensity：前者与 TextView 内部
+         * 解析 sp 的路径完全一致（大字号缩放下 scaledDensity 是非线性近似，会偏差）。
+         */
+        fun widthPx(text: String, sp: Float): Float {
+            paint.textSize = TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_SP, sp, ctx.resources.displayMetrics
+            )
+            return paint.measureText(text)
+        }
+
+        fun dpOf(px: Float): Float = px / ctx.resources.displayMetrics.density
+
+        /**
+         * 文本（可含 \n，按最长一行判定）超过可用宽时逐级降 1sp，最低 minSp；返回最终字号。
+         *
+         * 阈值取 100%（不留安全余量）而非常见的 0.9x：留余量的代价是「本可放下的文案被
+         * 无谓缩小一档」（实测 6 字站名 78dp 恰好等于 2×2 可用宽，按 0.92 会掉到 11sp）。
+         * 万一真机字体比实测略宽，兜底是**换行或 ellipsize，而不是丢内容**——上层每个
+         * 超长文案都有两行/降号兜底（见 line()）。
+         */
+        fun sp(text: String, availDp: Float, startSp: Float, minSp: Float): Float {
+            if (text.isEmpty() || availDp <= 0f) return startSp
+            val lines = text.split('\n')
+            var sp = startSp
+            while (sp > minSp && lines.any { dpOf(widthPx(it, sp)) > availDp }) sp -= 1f
+            return sp
+        }
+
+        /**
+         * 「线路 · 开往 X」专用（2×2 与列表共用）：一行放得下就用一行；放不下且含「开往」
+         * 就断在「开往」后换两行（两行分别判定，各自降字号）；连断行也放不下才整串降字号。
+         * 返回 (最终文本, 字号)。
+         *
+         * 用「断行」而不是「降号」优先：换行不丢任何信息，降号会连带把同页其它行一起缩小。
+         * 传入 startSp == minSp 时即为「在固定字号下只决定断不断行」，供列表统一字号后再定版式。
+         */
+        fun line(text: String, availDp: Float, startSp: Float, minSp: Float): Pair<String, Float> {
+            if (text.isEmpty()) return text to startSp
+            if (dpOf(widthPx(text, startSp)) <= availDp) return text to startSp
+            val brk = when {
+                text.contains("开往 ") -> text.replace("开往 ", "开往\n")
+                text.contains("开往") -> text.replace("开往", "开往\n")
+                else -> null
+            }
+            if (brk != null) return brk to sp(brk, availDp, startSp, minSp)
+            return text to sp(text, availDp, startSp, minSp)
+        }
+    }
+
+    /**
+     * 文本适配上下文：格子宽（launcher 实测优先，未知用声明下限）+ 2×2 的可用宽。
+     */
+    private fun textFit(ctx: Context, id: Int): TextFit {
+        val declared = if (perPage == 1) SMALL_MIN_W_DP else LIST_MIN_W_DP
+        val cellW = WidgetPrefs.getCellW(ctx, id).takeIf { it > 0 } ?: declared
+        return TextFit(ctx, cellW)
+    }
 
     override fun onUpdate(ctx: Context, mgr: AppWidgetManager, ids: IntArray) {
         for (id in ids) {
@@ -136,6 +237,14 @@ abstract class BaseWidget : AppWidgetProvider() {
             v.setTextViewText(R.id.w_up1, e.message ?: e.javaClass.simpleName)
             v.setTextViewText(R.id.w_up2, "")
             v.setTextViewText(R.id.w_up3, "")
+            // 紧急态副本在布局里默认 gone，但上一次成功渲染可能把它置成 VISIBLE（≤1 分钟时），
+            // 而兜底分支不走 setCountdown → 必须显式隐藏，否则错误文案与「已进站」重影。
+            v.setViewVisibility(R.id.w_up1_d, View.GONE)
+            // 时刻列/下一站清空：兜底卡片只留错误信息，不留上一次预览数据
+            v.setTextViewText(R.id.w_t1, "")
+            v.setTextViewText(R.id.w_t2, "")
+            v.setTextViewText(R.id.w_t3, "")
+            v.setTextViewText(R.id.w_next, "")
             v.setViewVisibility(R.id.pager_box, View.GONE)
             v.setOnClickPendingIntent(R.id.widget_root, openAppIntent(ctx))
             mgr.updateAppWidget(id, v)
@@ -167,6 +276,9 @@ abstract class BaseWidget : AppWidgetProvider() {
             val maxW = newOptions.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH)
             val maxH = newOptions.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT)
             val rowsNow = WidgetData.rows(ctx)
+            // v1.0.32：把 launcher 给的格子宽存下来 —— 文案降字号按它算可用宽
+            // （以前只写日志，布局全靠弹性装，窄格子上长文案必截断）。
+            if (minW > 0) WidgetPrefs.setCellSize(ctx, id, minW, minH)
             WidgetLog.append(
                 ctx,
                 "尺寸变化: id=$id, size=${this::class.java.simpleName}, " +
@@ -209,14 +321,49 @@ abstract class BaseWidget : AppWidgetProvider() {
         // 整数倍时），但任何一页都是满行，且收藏较少（≤perPage）时无变化。
         val start = minOf(page * perPage, (list.size - perPage).coerceAtLeast(0))
 
+        val fit = textFit(ctx, id)
+
         if (perPage == 1) {
-            bindSmall(ctx, views, list.getOrNull(start))
+            val cur = list.getOrNull(start)
+            if (cur != null) {
+                WidgetLog.append(
+                    ctx,
+                    "2×2 排版: id=$id, content=${fit.contentDp}dp, " +
+                        "name=${fit.sp(cur.name, fit.nameDp, 13f, 11f)}sp, " +
+                        "line=${fit.line(cur.lineWithMark(), fit.contentDp, 10f, 8f).second}sp"
+                )
+            }
+            bindSmall(views, cur, fit)
         } else {
-            // 只遍历布局真实存在的行；没数据的行（收藏不足一页）必须显式隐藏。
+            // 一屏内字号必须统一：同一页里某行缩小、别的行不缩，看着像错版。
+            // 用「全部收藏里最挤的那一条」定字号，整页共用（翻页时字号也稳定）。
+            val maxRightDp = list
+                .filter { it.countdown.isNotEmpty() || it.hhmm.isNotEmpty() }
+                .maxOfOrNull { rightColumnDp(fit, it) } ?: 0f
+            // 左侧文字列可用宽 = 内容列 − 20（色条4 + 名间距8 + 右列间距8）− 右列宽
+            val lineAvailDp = fit.contentDp - 20f - maxRightDp
+            var nameSp = 13f
+            var lineSp = 10f
+            for (r in list) {
+                nameSp = minOf(nameSp, fit.sp(r.name, lineAvailDp, 13f, 11f))
+                lineSp = minOf(lineSp, fit.line(r.lineWithMark(), lineAvailDp, 10f, 8f).second)
+            }
+            WidgetLog.append(
+                ctx,
+                "列表排版: id=$id, cell=${fit.contentDp}dp, 右列=${maxRightDp}dp, " +
+                    "文字列=${lineAvailDp}dp, name=${nameSp}sp, line=${lineSp}sp"
+            )
+
+            // 行数恒等于 perPage：没数据的行不再隐藏，保留空行占位（见 bindListRow）
             for (i in 0 until rowCount) {
                 val row = if (i < perPage) list.getOrNull(start + i) else null
                 val hasNext = i < perPage && list.getOrNull(start + i + 1) != null
-                bindListRow(ctx, views, i, row, hasNext)
+                // 断行按**共享字号**定版（startSp == minSp 即「字号已定，只决定断不断行」）——
+                // 若按各自的 10sp 断行，某行降到 9sp 后仍留着不必要的一行，行高会不一致
+                val lineText = row?.let {
+                    fit.line(it.lineWithMark(), lineAvailDp, lineSp, lineSp).first
+                }
+                bindListRow(views, i, row, hasNext, nameSp, lineSp, lineText)
             }
         }
 
@@ -257,45 +404,79 @@ abstract class BaseWidget : AppWidgetProvider() {
     }
 
     // ───────────────── 2×2（widget_small.xml，控件 id 为 w_*） ─────────────────
-    // v1.0.15：倒计时回到纯文本「时刻 · 距发车」（Chronometer 在小米 launcher 上
-    // 时间基准异常，已废弃），实时性由 WidgetTick 分钟对齐闹钟保证。
-    // v1.0.25：三班回退合并单行「时刻 · 距发车」——2×2 只有 110~160dp 宽还要让出
-    // 翻页列，「时刻/倒计时」分列必然截断（预览图实测实锤）。首班强调色，后两班次级灰。
-    // 下一站/第二三班无数据时动态 GONE，不留空位。
+    // v1.0.15：倒计时回到纯文本（Chronometer 在小米 launcher 上时间基准异常，已废弃），
+    // 实时性由 WidgetTick 分钟对齐闹钟保证。
+    // v1.0.25：三班合并单行「时刻 · 距发车」。
+    // v1.0.32：改**两列**（左时刻 / 右倒计时），字号按实测格子宽动态下发；班次不足三班
+    //          时清空文本保留空行（与其它尺寸信息量一致、行距恒定）。
 
-    private fun bindSmall(ctx: Context, views: RemoteViews, row: WidgetData.Row?) {
+    private fun bindSmall(views: RemoteViews, row: WidgetData.Row?, fit: TextFit) {
         val r = row ?: return
-        views.setInt(R.id.w_bar, "setBackgroundColor", r.color)
-        views.setTextViewText(R.id.w_name, r.name)
-        views.setTextViewText(R.id.w_line, r.lineWithMark())
 
-        // 下一站：环线/数据缺失时隐藏整行，不留空位
-        if (r.nextStation.isEmpty()) {
-            views.setViewVisibility(R.id.w_next, View.GONE)
-        } else {
-            views.setViewVisibility(R.id.w_next, View.VISIBLE)
-            views.setTextViewText(R.id.w_next, "下一站 ${r.nextStation}")
-        }
+        // 「线路 · 开往 X」：一行优先，放不下就断在「开往」后换两行——窄卡片上
+        // 「15号线 · 开往 清华东路西口」一行需 124dp，而内容列只有 90dp 上下。
+        val (lineText, lineSp) = fit.line(r.lineWithMark(), fit.contentDp, 10f, 8f)
+        val nextText = if (r.nextStation.isEmpty()) "" else "下一站 ${r.nextStation}"
+        val nextSp = fit.sp(nextText, fit.contentDp, 10f, 8f)
+
+        views.setInt(R.id.w_bar, "setBackgroundColor", r.color)
+        views.setTextViewTextSize(
+            R.id.w_name, TypedValue.COMPLEX_UNIT_SP, fit.sp(r.name, fit.nameDp, 13f, 11f)
+        )
+        views.setTextViewText(R.id.w_name, r.name)
+        views.setTextViewTextSize(R.id.w_line, TypedValue.COMPLEX_UNIT_SP, lineSp)
+        views.setTextViewText(R.id.w_line, lineText)
+        // 下一站：数据缺失（环线/未知）时清空文本而不是隐藏整行——空行占位让行距恒定
+        views.setViewVisibility(R.id.w_next, View.VISIBLE)
+        views.setTextViewTextSize(R.id.w_next, TypedValue.COMPLEX_UNIT_SP, nextSp)
+        views.setTextViewText(R.id.w_next, nextText)
 
         val ups = r.upcoming
         val now = nowOperatingMinute()
-
-        // 首班：合并单行「时刻 · 距发车」。紧急态（≤1 分钟）与常态是叠放的两个
-        // TextView，靠显隐切换——颜色必须写在布局 XML 里（@color/widget_accent、
-        // @color/widget_danger），深色模式才能跟随 values-night 正确切换。
-        if (ups.isEmpty()) {
-            setCountdown(views, R.id.w_up1, R.id.w_up1_d, r.countdown, false)
-        } else {
-            setCountdown(views, R.id.w_up1, R.id.w_up1_d, upcomingText(ups[0]), ups[0].absMin - now <= 1)
+        for (k in 0 until SMALL_SLOTS) {
+            val up = ups.getOrNull(k)
+            val timeText: String
+            val cdText: String
+            val urgent: Boolean
+            when {
+                up != null -> {
+                    timeText = up.hhmm
+                    cdText = compactWaitText(up.absMin - now)
+                    urgent = up.absMin - now <= 1
+                }
+                k == 0 -> {
+                    // 收班/无班次：首行显示静态文案，信息不丢
+                    timeText = r.hhmm
+                    cdText = r.countdown
+                    urgent = false
+                }
+                else -> {
+                    timeText = ""
+                    cdText = ""
+                    urgent = false
+                }
+            }
+            views.setTextViewText(SMALL_TIME_IDS[k], timeText)
+            // 右列（倒计时）不能被左列挤掉：可用宽 = 内容列 − 时刻实测宽 − 6dp 间距
+            val cdAvail = fit.contentDp - fit.dpOf(fit.widthPx(timeText, SMALL_TIME_SP)) - 6f
+            val cdSp = fit.sp(
+                cdText, cdAvail,
+                if (k == 0) SMALL_CD_SP else SMALL_CD_SP2, 11f
+            )
+            val cdId = SMALL_CD_IDS[k]
+            val cdDId = SMALL_CD_DANGER_IDS[k]
+            views.setTextViewTextSize(cdId, TypedValue.COMPLEX_UNIT_SP, cdSp)
+            views.setTextViewText(cdId, cdText)
+            if (cdDId != 0) {
+                views.setTextViewTextSize(cdDId, TypedValue.COMPLEX_UNIT_SP, cdSp)
+                views.setTextViewText(cdDId, cdText)
+                setCountdownVisible(views, cdId, cdDId, urgent)
+            }
         }
-
-        // 后两班：无则整行留空（不留误导性文案）
-        bindSmallUp(views, ups, 1, R.id.w_up2)
-        bindSmallUp(views, ups, 2, R.id.w_up3)
     }
 
     /**
-     * 叠放的两个倒计时控件：写同一份文案，按 urgent 决定显示哪一个。
+     * 叠放的两个倒计时控件：同一份文案，按 urgent 决定显示哪一个。
      * 这是「深色模式只能 XML 静态适配」约束下的紧急态方案——
      * 一旦用 setTextColor 动态设色，小米切换深色模式时用缓存 RemoteViews 重建，
      * 颜色就再也不会更新。
@@ -306,33 +487,51 @@ abstract class BaseWidget : AppWidgetProvider() {
     ) {
         views.setTextViewText(idNormal, text)
         views.setTextViewText(idDanger, text)
+        setCountdownVisible(views, idNormal, idDanger, urgent)
+    }
+
+    private fun setCountdownVisible(views: RemoteViews, idNormal: Int, idDanger: Int, urgent: Boolean) {
         views.setViewVisibility(idNormal, if (urgent) View.GONE else View.VISIBLE)
         views.setViewVisibility(idDanger, if (urgent) View.VISIBLE else View.GONE)
     }
 
-    /** 2×2 的后续班次行：合并单行「时刻 · 距发车」，无数据时 GONE */
-    private fun bindSmallUp(views: RemoteViews, ups: List<WidgetData.Upcoming>, idx: Int, idCd: Int) {
-        val has = ups.size > idx
-        views.setViewVisibility(idCd, if (has) View.VISIBLE else View.GONE)
-        if (!has) return
-        views.setTextViewText(idCd, upcomingText(ups[idx]))
-    }
-
     // ───────────── 倒计时文案（v1.0.15：纯文本，分钟粒度） ─────────────
 
-    /** 2×2 合并行：「时刻 · 距发车」，如 "15:04 · 3 分钟"；无班次只显示时刻 */
-    private fun upcomingText(up: WidgetData.Upcoming): String {
-        if (up.absMin == Int.MAX_VALUE) return up.hhmm
-        return "${up.hhmm} · ${waitText(up.absMin - nowOperatingMinute())}"
+    /**
+     * 2×2 紧凑倒计时：≥60 分钟用「X时Y分」（≈3.7em，13sp 下 48dp），
+     * 而不是列表用的「X 小时 Y 分」（≈5.6em，2×2 的右列放不下）。
+     */
+    private fun compactWaitText(waitMin: Int): String = when {
+        waitMin <= 0 -> "已进站"
+        waitMin >= 60 -> "${waitMin / 60}时${waitMin % 60}分"
+        else -> "$waitMin 分钟"
     }
+
+    /** 列表行右侧「倒计时 + 时刻」两行取较宽者（dp）→ 用于反推左侧文字列的可用宽 */
+    private fun rightColumnDp(fit: TextFit, r: WidgetData.Row): Float = maxOf(
+        fit.dpOf(fit.widthPx(r.countdown, LIST_CD_SP)),
+        fit.dpOf(fit.widthPx(r.hhmm, LIST_TIME_SP))
+    )
 
     // ───────────── 4×2 / 4×4（widget_list*.xml，控件 id 为 row*_line / time / cd） ─────────────
 
-    private fun bindListRow(ctx: Context, views: RemoteViews, i: Int, row: WidgetData.Row?, hasNext: Boolean) {
+    private fun bindListRow(
+        views: RemoteViews, i: Int, row: WidgetData.Row?,
+        hasNext: Boolean, nameSp: Float, lineSp: Float, lineText: String?
+    ) {
         val ids = rowIds(i)
         if (row == null) {
-            views.setViewVisibility(ids.row, View.GONE)
+            // v1.0.32：空行**保留占位**（不再 GONE）——每行恒占「卡高 ÷ perPage」一格，
+            // 收藏不足一页时内容贴顶、留白集中在底部。旧版把空行 GONE 掉，剩下的行把整卡
+            // 高度均分 → 收藏少时行距被拉开（朋友机 4×4 只有 4 站，行间大片留白）。
+            views.setViewVisibility(ids.row, View.VISIBLE)
             if (ids.div != 0) views.setViewVisibility(ids.div, View.GONE)
+            views.setInt(ids.bar, "setBackgroundColor", Color.TRANSPARENT)
+            views.setTextViewText(ids.name, "")
+            views.setTextViewText(ids.line, "")
+            views.setTextViewText(ids.time, "")
+            views.setTextViewText(ids.cd, "")
+            views.setTextViewText(ids.cdD, "")
             return
         }
         views.setViewVisibility(ids.row, View.VISIBLE)
@@ -342,9 +541,12 @@ abstract class BaseWidget : AppWidgetProvider() {
         // 色条：TextView + setBackgroundColor（RemoteViews 反射方法）。
         // 不用 setImageViewBitmap——小米 launcher 翻页重渲染时部分位图不显示（v1.0.7 实测）。
         views.setInt(ids.bar, "setBackgroundColor", row.color)
+        // 站名 / 线路·方向：字号由 render 按实测可用宽统一下发（整页一致，超宽断行/降号不截断）
+        views.setTextViewTextSize(ids.name, TypedValue.COMPLEX_UNIT_SP, nameSp)
         views.setTextViewText(ids.name, row.name)
-        // 线路 · 方向 · 标记（与网页 fav-lines 一致）
-        views.setTextViewText(ids.line, row.lineWithMark())
+        views.setTextViewTextSize(ids.line, TypedValue.COMPLEX_UNIT_SP, lineSp)
+        // 线路 · 方向 · 标记（与网页 fav-lines 一致）；lineText 可能含「开往」后的换行
+        views.setTextViewText(ids.line, lineText ?: row.lineWithMark())
         // 时刻小字（次要信息）
         views.setTextViewText(ids.time, row.hhmm)
         // 倒计时大字：WidgetData 已按当前时间算好的文案（X 分钟 / X 小时 Y 分 / 已进站）。
@@ -352,17 +554,9 @@ abstract class BaseWidget : AppWidgetProvider() {
         setCountdown(views, ids.cd, ids.cdD, row.countdown, row.urgent)
     }
 
-    // ───────────── 倒计时文案（v1.0.15：纯文本，分钟粒度） ─────────────
-
-    /**
-     * 距发车分钟数 → 文案（与网页版一致）：<60 分「X 分钟」；≥60 分「X 小时 Y 分」；
-     * ≤0 或异常「已进站」。
-     */
-    private fun waitText(waitMin: Int): String = when {
-        waitMin <= 0 -> "已进站"
-        waitMin >= 60 -> "${waitMin / 60} 小时 ${waitMin % 60} 分"
-        else -> "$waitMin 分钟"
-    }
+    // 倒计时文案：列表行直接用 WidgetData 算好的 row.countdown（「X 分钟 / X 小时 Y 分 /
+    // 已进站 / 次日」），2×2 用 compactWaitText（紧凑式）。原 waitText/upcomingText
+    // 在 v1.0.32 改两列后已无调用点，删除避免死代码。
 
     /** 当前运营日分钟数（凌晨 4:30 前归前一运营日，与网页版/WidgetData 一致） */
     private fun nowOperatingMinute(): Int {
@@ -414,6 +608,12 @@ abstract class BaseWidget : AppWidgetProvider() {
         const val EXTRA_DELTA = "delta"
         /** 小米小部件曝光刷新（Manifest 里已声明该 action） */
         const val ACTION_MIUI_EXPOSURE = "miui.appwidget.action.APPWIDGET_UPDATE"
+
+        /** info xml 里声明的 minWidth——launcher 保证的下限，未知真实格子宽时用它（2×2=125dp） */
+        const val SMALL_MIN_W_DP = 125
+
+        /** 列表（4×2 / 4×4）声明的 minWidth = 250dp */
+        const val LIST_MIN_W_DP = 250
     }
 }
 
@@ -458,6 +658,38 @@ class RowIds(
  * RemoteViews 对不存在的 id 调 setXxx 不会立刻报错，但 updateAppWidget 应用布局时会抛异常
  * → launcher 显示「载入窗口小部件时出现问题」。
  */
+// ───────────────────── 文案自适应口径（v1.0.32） ─────────────────────
+//
+// 「放不下」的处置顺序：① 断行（断在「开往」后，两行都不丢字）→ ② 降字号（最低 8sp）→
+// ③ ellipsize（仅在①②都无解时的最后兜底，例如「X 小时 Y 分」这类宽倒计时把左列挤到
+//    极窄、且线路名还带「快车·跳N站」标记的极罕见组合）。
+// 降号阈值取 100%（不留安全余量）：留余量会把本可放下的文案无谓缩小一档；真机若比实测
+// 略宽，后果是断行而不是截断，不丢信息。
+
+// ───────────────────── 2×2 班次行的控件 id / 字号（v1.0.32 两列式） ─────────────────────
+//
+// 三行班次固定占位（左「时刻」+ 右「倒计时」）；班次不足三班时清空文本、保留空行。
+// 首行另有「紧急态」叠放副本（cd_danger），按 urgent 切显隐。
+
+/** 左列「时刻」10sp 次级灰 */
+private const val SMALL_TIME_SP = 10f
+
+/** 右列「倒计时」：首行 13sp 强调色，后两班 12sp 次级色 */
+private const val SMALL_CD_SP = 13f
+private const val SMALL_CD_SP2 = 12f
+
+/** 2×2 班次行数（与 widget_small.xml 的班次行数严格一致） */
+private const val SMALL_SLOTS = 3
+
+/** 列表右列字号：倒计时 17sp、时刻 10sp（WidgetData 已算好文案，无需换算） */
+private const val LIST_CD_SP = 17f
+private const val LIST_TIME_SP = 10f
+
+private val SMALL_TIME_IDS = intArrayOf(R.id.w_t1, R.id.w_t2, R.id.w_t3)
+private val SMALL_CD_IDS = intArrayOf(R.id.w_up1, R.id.w_up2, R.id.w_up3)
+/** 紧急态叠放副本；0 = 该行没有副本 */
+private val SMALL_CD_DANGER_IDS = intArrayOf(R.id.w_up1_d, 0, 0)
+
 // 注意：widget_list6.xml 由 scripts/gen_widget_list6.py 从 widget_list3.xml 生成，
 // 两侧行结构与 id 命名必须一致，否则会出现只在 4×4 复现的渲染问题。
 private val IDS_3 = arrayOf(                       // widget_list3.xml：3 行 + div1/div2
@@ -494,8 +726,19 @@ private object WidgetPrefs {
         setPage(ctx, id, ((cur + delta) % pages + pages) % pages)
     }
 
+    /**
+     * launcher 最近一次告知的格子尺寸（dp）。v1.0.32 起用于文案自适应：
+     * 只写日志不落库的旧行为无法按实际格子宽决定字号（窄格子上长文案必截断）。
+     * 返回 0 表示未知，调用方回退到 info xml 声明的 minWidth。
+     */
+    fun getCellW(ctx: Context, id: Int): Int = prefs(ctx).getInt("w_$id", 0)
+
+    fun setCellSize(ctx: Context, id: Int, w: Int, h: Int) {
+        prefs(ctx).edit().putInt("w_$id", w).putInt("h_$id", h).apply()
+    }
+
     fun clear(ctx: Context, id: Int) {
-        prefs(ctx).edit().remove("page_$id").apply()
+        prefs(ctx).edit().remove("page_$id").remove("w_$id").remove("h_$id").apply()
     }
 }
 

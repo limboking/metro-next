@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  2×2 单站小部件（v1.0.25 HyperOS 规范版）
+  2×2 单站小部件（v1.0.32 排版定稿）
 
   规范要点：
   - 根布局 id 必须是 @android:id/background，且背景不透明（系统据此加圆角与切换动画）
@@ -9,16 +9,24 @@
     严禁代码 setTextColor——小米切换深色时用缓存的 RemoteViews 重建，代码设的值不会更新。
   - 紧急态（≤1 分钟）用「双 TextView 叠放 + 切显隐」实现，同理不能动态设色。
 
-  结构：色条+站名 / 线路·方向 / 下一站 / 分割线 / 最近 3 班（「时刻 · 倒计时」合并单行）
-  注：2×2 只有 110~160dp 宽，还要让出 28dp 翻页列——「时刻」与「倒计时」若分列放不下，
-      会截断；因此回退 v1.0.9 验证过的合并单行样式（首班强调色，后两班次级灰）。
+  结构：色条+站名 / 线路·方向 / 下一站 / 分割线 / 最近 3 班（左「时刻」+ 右「倒计时」两列）
+  v1.0.32 排版口径（信息量与其它尺寸完全一致，只调排版，不因格子大小增减内容）：
+  - 内容列宽 78 → 90dp（padStart 10→8、翻页列 24→20dp；图标本体仅 12/14dp，center 不裁切）。
+    几何：格子宽 − padStart8 − padEnd4 − 20（这 20 同时是内容列 paddingEnd 与翻页列宽，
+    两者左右相邻不重叠）＝ cellW − 32
+  - 站名 14 → 13sp；w_line / w_next 允许 2 行（窄卡片长文案靠换行/降字号消化，不截断）
+  - 班次行由「合并单行」改**两列**：左时刻（10sp 次级灰）右倒计时（13sp 强调 / 12sp 次级，右对齐）
+    窄卡片下「18:00 · 1 分钟」单行需 ~117dp 而只有 90dp，合并单行必截断（朋友机实测 "18:00 · 1…"）。
+  - 班次不足 3 时不再隐藏整行，改为清空文本（v1.0.32）：空行仍占位，行距恒定。
+    字号由 MetroWidget 的 TextFit 按实测格子宽动态下发（setTextViewTextSize），
+    此处 textSize 只是预览/兜底值。
 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@android:id/background"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/widget_bg"
-    android:paddingStart="10dp"
+    android:paddingStart="8dp"
     android:paddingEnd="4dp"
     android:paddingTop="6dp"
     android:paddingBottom="6dp">
@@ -28,7 +36,7 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
-        android:paddingEnd="30dp">
+        android:paddingEnd="20dp">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -52,10 +60,11 @@
                 android:maxLines="1"
                 android:text="西二旗"
                 android:textColor="@color/widget_text_primary"
-                android:textSize="14sp"
+                android:textSize="13sp"
                 android:textStyle="bold" />
         </LinearLayout>
 
+        <!-- 线路 · 开往 X：放不下时由代码断在「开往」后换行（最多 2 行） -->
         <TextView
             android:id="@+id/w_line"
             android:layout_width="match_parent"
@@ -63,12 +72,12 @@
             android:layout_marginTop="3dp"
             android:ellipsize="end"
             android:includeFontPadding="false"
-            android:maxLines="1"
+            android:maxLines="2"
             android:text="6号线 · 开往 潞城"
             android:textColor="@color/widget_text_tertiary"
             android:textSize="10sp" />
 
-        <!-- 下一站：无数据时运行时 setViewVisibility(GONE) -->
+        <!-- 下一站：超宽由代码降字号（最低 8sp）；无数据时清空文本（不再 GONE） -->
         <TextView
             android:id="@+id/w_next"
             android:layout_width="match_parent"
@@ -76,7 +85,7 @@
             android:layout_marginTop="2dp"
             android:ellipsize="end"
             android:includeFontPadding="false"
-            android:maxLines="1"
+            android:maxLines="2"
             android:text="下一站 十里堡"
             android:textColor="@color/widget_text_tertiary"
             android:textSize="10sp" />
@@ -87,69 +96,131 @@
             android:layout_marginTop="8dp"
             android:background="@color/widget_divider" />
 
-        <!-- 最近 3 班：三行均分剩余高度，行内容垂直居中（合并单行，见文件头注释） -->
-        <FrameLayout
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1">
-
-            <TextView
-                android:id="@+id/w_up1"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="start|center_vertical"
-                android:includeFontPadding="false"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:text="15:04 · 3 分钟"
-                android:textColor="@color/widget_accent"
-                android:textSize="16sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/w_up1_d"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="start|center_vertical"
-                android:includeFontPadding="false"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:text="15:04 · 已进站"
-                android:textColor="@color/widget_danger"
-                android:textSize="16sp"
-                android:textStyle="bold" />
-        </FrameLayout>
-
-        <TextView
-            android:id="@+id/w_up2"
+        <!-- 最近 3 班：三行均分剩余高度，行内容垂直居中；左时刻 + 右倒计时两列 -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
-            android:gravity="start|center_vertical"
-            android:includeFontPadding="false"
-            android:ellipsize="end"
-                android:maxLines="1"
-            android:text="15:11 · 10 分钟"
-            android:textColor="@color/widget_text_secondary"
-            android:textSize="12sp" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
-        <TextView
-            android:id="@+id/w_up3"
+            <TextView
+                android:id="@+id/w_t1"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:text="15:04"
+                android:textColor="@color/widget_text_tertiary"
+                android:textSize="10sp" />
+
+            <FrameLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:layout_weight="1">
+
+                <TextView
+                    android:id="@+id/w_up1"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="end"
+                    android:ellipsize="end"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:text="3 分钟"
+                    android:textColor="@color/widget_accent"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <!-- 紧急态叠放副本：默认 GONE（initialLayout / 兜底渲染时才不会与常态文案重影） -->
+                <TextView
+                    android:id="@+id/w_up1_d"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="end"
+                    android:ellipsize="end"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:text="已进站"
+                    android:textColor="@color/widget_danger"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    android:visibility="gone" />
+            </FrameLayout>
+        </LinearLayout>
+
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
-            android:gravity="start|center_vertical"
-            android:includeFontPadding="false"
-            android:ellipsize="end"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/w_t2"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:includeFontPadding="false"
                 android:maxLines="1"
-            android:text="15:19 · 18 分钟"
-            android:textColor="@color/widget_text_secondary"
-            android:textSize="12sp" />
+                android:text="15:11"
+                android:textColor="@color/widget_text_tertiary"
+                android:textSize="10sp" />
+
+            <TextView
+                android:id="@+id/w_up2"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:gravity="end"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:text="10 分钟"
+                android:textColor="@color/widget_text_secondary"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/w_t3"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:text="15:19"
+                android:textColor="@color/widget_text_tertiary"
+                android:textSize="10sp" />
+
+            <TextView
+                android:id="@+id/w_up3"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:gravity="end"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:text="18 分钟"
+                android:textColor="@color/widget_text_secondary"
+                android:textSize="12sp" />
+        </LinearLayout>
     </LinearLayout>
 
     <LinearLayout
         android:id="@+id/pager_box"
-        android:layout_width="24dp"
+        android:layout_width="20dp"
         android:layout_height="wrap_content"
         android:layout_gravity="end|center_vertical"
         android:gravity="center"
@@ -157,7 +228,7 @@
 
         <ImageView
             android:id="@+id/w_refresh"
-            android:layout_width="24dp"
+            android:layout_width="20dp"
             android:layout_height="26dp"
             android:contentDescription="@string/widget_refresh"
             android:scaleType="center"
@@ -165,7 +236,7 @@
 
         <ImageView
             android:id="@+id/pager_prev"
-            android:layout_width="24dp"
+            android:layout_width="20dp"
             android:layout_height="26dp"
             android:contentDescription="@string/widget_prev_page"
             android:scaleType="center"
@@ -183,7 +254,7 @@
 
         <ImageView
             android:id="@+id/pager_next"
-            android:layout_width="24dp"
+            android:layout_width="20dp"
             android:layout_height="26dp"
             android:contentDescription="@string/widget_next_page"
             android:scaleType="center"

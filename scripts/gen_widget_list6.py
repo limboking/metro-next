@@ -87,15 +87,19 @@ closer = src[close_start:pager_start]
 pager = src[pager_start:]
 
 header = header.replace(
-    "  4×2 三站小部件（v1.0.25 HyperOS 规范版）",
-    "  4×4 六站小部件（v1.0.25 HyperOS 规范版）",
+    "  4×2 三站小部件（v1.0.32 排版定稿）",
+    "  4×4 六站小部件（v1.0.32 排版定稿）",
 )
+if "  4×4 六站小部件" not in header:
+    raise SystemExit("标题锚点未命中：widget_list3.xml 的标题行被改过，请同步本脚本")
 header = header.replace(
-    "不足一页时运行时 GONE）。",
-    "不足一页时运行时 GONE）。\n"
+    "  行间 1dp 分割线：本行或下一行无内容时运行时隐藏。",
+    "  行间 1dp 分割线：本行或下一行无内容时运行时隐藏。\n"
     "  本文件由 scripts/gen_widget_list6.py 生成，行结构与 widget_list3.xml 必须一致——\n"
     "  改行结构请改 4×2 布局后重跑脚本，不要手改本文件。",
 )
+if "gen_widget_list6.py 生成" not in header:
+    raise SystemExit("注释锚点未命中：widget_list3.xml 的文件头注释被改过，请同步本脚本")
 pager = pager.replace('android:text="1/3"', 'android:text="1/2"')
 
 out = header + body + closer + pager

@@ -1,11 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  4×2 三站小部件（v1.0.25 HyperOS 规范版）
+  4×2 三站小部件（v1.0.32 排版定稿）
 
   规范要点见 widget_small.xml 顶部注释（根 id / 安全区 / 深色静态适配 / 双 TextView 紧急态）。
 
-  行结构：[4dp 线路色条] 站名(14sp) + 线路·方向(11sp) │ 倒计时(18sp) + 时刻(11sp)
-  行高用 height=0dp + weight=1 均分，行间 1dp 分割线（不足一页时运行时 GONE）。
+  行结构：[4dp 线路色条] 站名(13sp 粗) + 线路·方向(10sp) │ 倒计时(17sp) + 时刻(10sp)
+  行数恒等于 perPage（4×2=3 / 4×4=6），行高 height=0dp + weight=1 均分。
+  v1.0.32：收藏不足一页时**空行不再 GONE、保留占位**（清空文本、隐藏色条）——
+  于是每行恒占「卡高 ÷ perPage」一格，内容贴顶、留白集中在底部，行距不随收藏多少变化；
+  满页时与旧版完全一致（零感知）。旧版把空行 GONE 掉，剩下的行把整卡高度均分，
+  收藏少时行距被拉开（朋友机 4×4 只收藏 4 站 → 行间大片留白）。
+  长文案（站名 / 线路·方向）由 MetroWidget 的 TextFit 按实测可用宽处理：一行放得下就用一行，
+  放不下且含「开往」则断在「开往」后换两行（v1.0.32：列表同样允许两行——否则遇到
+  「X 小时 Y 分」这类宽倒计时把左列挤窄时，长线路名只能截断，而截断是用户明确不能接受的）；
+  连断行都放不下才降字号。此处 textSize 只是预览/兜底值。
+  行间 1dp 分割线：本行或下一行无内容时运行时隐藏。
 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@android:id/background"
@@ -61,7 +70,7 @@
                     android:layout_marginTop="1dp"
                     android:ellipsize="end"
                     android:includeFontPadding="false"
-                    android:maxLines="1"
+                    android:maxLines="2"
                     android:text="13号线 · 开往 西土城"
                     android:textColor="@color/widget_text_tertiary"
                     android:textSize="10sp" />
@@ -97,6 +106,7 @@
                         android:maxLines="1"
                         android:text="1 分钟"
                         android:textColor="@color/widget_danger"
+                        android:visibility="gone"
                         android:textSize="17sp"
                         android:textStyle="bold" />
                 </FrameLayout>
@@ -159,7 +169,7 @@
                     android:layout_marginTop="1dp"
                     android:ellipsize="end"
                     android:includeFontPadding="false"
-                    android:maxLines="1"
+                    android:maxLines="2"
                     android:text="10号线 · 内环"
                     android:textColor="@color/widget_text_tertiary"
                     android:textSize="10sp" />
@@ -195,6 +205,7 @@
                         android:maxLines="1"
                         android:text="1 分钟"
                         android:textColor="@color/widget_danger"
+                        android:visibility="gone"
                         android:textSize="17sp"
                         android:textStyle="bold" />
                 </FrameLayout>
@@ -257,7 +268,7 @@
                     android:layout_marginTop="1dp"
                     android:ellipsize="end"
                     android:includeFontPadding="false"
-                    android:maxLines="1"
+                    android:maxLines="2"
                     android:text="2号线 · 内环"
                     android:textColor="@color/widget_text_tertiary"
                     android:textSize="10sp" />
@@ -293,6 +304,7 @@
                         android:maxLines="1"
                         android:text="1 分钟"
                         android:textColor="@color/widget_danger"
+                        android:visibility="gone"
                         android:textSize="17sp"
                         android:textStyle="bold" />
                 </FrameLayout>

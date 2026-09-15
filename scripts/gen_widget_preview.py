@@ -93,12 +93,13 @@ def refresh_icon(draw, cx, cy, r=6 * D, width=2 * D):
         draw.line([(px, py), (px - bx * L, py - by * L)], fill=TXT_TERT, width=width)
 
 
-def draw_pager(draw, W, H, page_text):
+def draw_pager(draw, W, H, page_text, pager_w=PAGER_W, pad_end=4 * D):
     """右侧竖排翻页列：刷新(26dp)/上箭头(26dp)/页码(16dp)/下箭头(26dp)，整体垂直居中。
-    列宽 24dp，右边缘与内容区右内边距对齐（根布局 paddingEnd=16dp）。"""
+    列宽默认 26dp（4×2/4×4），2×2 传 20dp（v1.0.32 起收窄）。
+    右边缘与内容列右缘对齐（内容列 paddingEnd 让出的位置）。"""
     box_h = (26 + 26 + 16 + 26) * D
     top = (H - box_h) // 2
-    cx = W - PAD - PAGER_W // 2
+    cx = W - pad_end - pager_w // 2
     refresh_icon(draw, cx, top + 13 * D)
     chevron(draw, cx, top + 26 * D + 13 * D, up=True)
     draw.text((cx, top + 52 * D + 8 * D), page_text, font=f(11),
@@ -150,45 +151,50 @@ def gen_list_preview(path, H_dp, rows, page_text):
 
 def gen_small_preview(path):
     """2×2 预览：160dp 方图（320×320px）。
-    画布取真机 2×2 的常见实际占位（约 160dp，大于 minWidth=110dp）——
-    用 146dp 画会因为内容区被安全区+翻页列挤压而截断，与真机表现不符。
-    内容与 widget_small.xml 一致：
-      色条+站名 / 线路·方向 / 下一站 / 分割线 / 最近 3 班（「时刻 · 距发车」合并单行，
-      首班强调色、后两班次级灰——2×2 宽度放不下分列，v1.0.25 实测回退）。"""
+    画布取真机 2×2 的常见实际占位（约 160dp，大于 minWidth=125dp）。
+    内容与 v1.0.32 的 widget_small.xml 一致：
+      根 padStart 8dp / padEnd 4dp，内容列 paddingEnd 20dp，翻页列 20dp；
+      色条+站名(13sp 粗) / 线路·方向(10sp) / 下一站(10sp) / 分割线 /
+      最近 3 班**两列**：左时刻(10sp 次级灰)，右倒计时(首班 13sp 强调 / 后两班 12sp 次级)右对齐。"""
     W = H = 160 * D
     img = rounded_rect_alpha((W, H), CORNER, BG)
     draw = ImageDraw.Draw(img)
-    x = PAD
+    PAD_S = 8 * D
+    PAGER_W_S = 20 * D
+    pad_end = 4 * D
+    content_right = W - pad_end - PAGER_W_S      # 内容列右缘（与翻页列左缘重合）
+    x = PAD_S
     color = (0xF5, 0xD8, 0x00, 255)
 
-    # ① 色条 + 站名（色条 4×18dp，站名 15sp 粗，marginStart 8dp）
-    y = PAD
+    # ① 色条 + 站名（色条 4×18dp，站名 13sp 粗，marginStart 8dp；paddingTop 6dp）
+    y = 6 * D
     draw.rounded_rectangle([x, y, x + 4 * D, y + 18 * D], radius=2 * D, fill=color)
     draw.text((x + 4 * D + 8 * D, y + 9 * D), "呼家楼",
-              font=f(14, bold=True), fill=TXT_PRIMARY, anchor="lm")
-    # ② 线路 · 方向（11.5sp，marginTop 3dp）
+              font=f(13, bold=True), fill=TXT_PRIMARY, anchor="lm")
+    # ② 线路 · 方向（10sp，marginTop 3dp）
     y += 18 * D + 3 * D
     draw.text((x, y + 6 * D), "6号线 · 开往 潞城", font=f(10), fill=TXT_TERT, anchor="lm")
-    # ③ 下一站（11.5sp，marginTop 2dp）
+    # ③ 下一站（10sp，marginTop 2dp）
     y += 12 * D + 2 * D
     draw.text((x, y + 6 * D), "下一站 十里堡", font=f(10), fill=TXT_TERT, anchor="lm")
-    # ④ 分割线（marginTop 8dp）
+    # ④ 分割线（marginTop 8dp，右端到内容列右缘）
     y += 12 * D + 8 * D
-    draw.rectangle([x, y, W - PAD - PAGER_W - 4 * D, y + 1 * D - 1], fill=DIVIDER)
+    draw.rectangle([x, y, content_right, y + 1 * D - 1], fill=DIVIDER)
 
-    # ⑤ 最近 3 班：三行均分剩余高度，合并单行（与布局一致，超出翻页列宽度则截断）
+    # ⑤ 最近 3 班：三行均分剩余高度，两列（左时刻 / 右倒计时右对齐）
     top = y + 1 * D
-    seg = (H - PAD - top) // 3
-    text_right = W - PAD - PAGER_W - 2 * D          # 内容可用右界（给翻页列让位）
-    rows = [("15:04 · 3 分钟", 16, True, ACCENT),
-            ("15:11 · 10 分钟", 12, False, TXT_SECOND),
-            ("15:19 · 18 分钟", 12, False, TXT_SECOND)]
-    for i, (txt, fs, bold, col) in enumerate(rows):
-        ft = f(fs, bold=bold)
-        draw.text((x, top + i * seg + seg // 2),
-                  trunc(draw, txt, ft, text_right - x), font=ft, fill=col, anchor="lm")
+    seg = (H - 6 * D - top) // 3
+    rows = [
+        ("15:04", "3 分钟", 13, True, ACCENT),
+        ("15:11", "10 分钟", 12, False, TXT_SECOND),
+        ("15:19", "18 分钟", 12, False, TXT_SECOND),
+    ]
+    for i, (t, cd, fs, bold, col) in enumerate(rows):
+        cy = top + i * seg + seg // 2
+        draw.text((x, cy), t, font=f(10), fill=TXT_TERT, anchor="lm")
+        draw.text((content_right, cy), cd, font=f(fs, bold=bold), fill=col, anchor="rm")
 
-    draw_pager(draw, W, H, "1/7")
+    draw_pager(draw, W, H, "1/7", pager_w=PAGER_W_S, pad_end=pad_end)
     img.save(path)
 
 
